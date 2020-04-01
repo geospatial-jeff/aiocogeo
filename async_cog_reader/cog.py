@@ -72,7 +72,7 @@ class COGReader:
         # TODO: Wrap a lot of this in a method to make more readable
         # Read first 4 bytes to determine tiff or bigtiff and byte order
         if self._header.read(2) == b'MM':
-            self.endian = "big"
+            self._header._endian = "big"
 
         self.version = self._header.read(2, cast_to_int=True)
         if self.version == 42:
