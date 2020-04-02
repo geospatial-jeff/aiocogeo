@@ -1,4 +1,3 @@
-
 # https://github.com/python-pillow/Pillow/blob/master/src/PIL/TiffTags.py
 TIFF_TAGS = {
     254: "NewSubfileType",

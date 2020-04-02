@@ -1,46 +1,10 @@
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import List, Optional
 
+from .counter import BytesCounter
 from .ifd import IFD
 
 import aiohttp
-
-@dataclass
-class BytesCounter:
-    """
-    Duck-typed file-like object.
-    """
-    data: bytes
-
-    # Counter to keep track of our current offset within `data`
-    _offset: int = 0
-    _endian: str = 'little'
-
-    def read(self, offset, cast_to_int=False):
-        """
-        Read <offset> number of bytes past the current `self._offset` and increment `self._offset`.
-        """
-        data = self.data[self._offset:self._offset+offset]
-        self.incr(offset)
-        return int.from_bytes(data, self._endian) if cast_to_int else data
-
-    def incr(self, offset):
-        """
-        Increment the offset.
-        """
-        self._offset += offset
-
-    def seek(self, offset):
-        """
-        Change offset position.
-        """
-        self._offset = offset
-
-    def tell(self):
-        """
-        Returns current offset position.
-        """
-        return self._offset
 
 
 @dataclass
@@ -48,12 +12,12 @@ class COGReader:
     filepath: str
     session: Optional[aiohttp.ClientSession] = None
 
-    _header: BytesCounter = None
-    _version: int = 42
-    _big_tiff: bool = False
+    _header: Optional[BytesCounter] = None
+    _version: Optional[int] = 42
+    _big_tiff: Optional[bool] = False
 
-    _offset = 0
-    _session_keep_alive = True
+    _session_keep_alive: Optional[bool] = True
+    _ifds: Optional[List[IFD]] = field(default_factory=lambda: [])
 
     async def range_request(self, start, offset):
         range_header = {"Range": f"bytes={start}-{start+offset}"}
@@ -94,10 +58,10 @@ class COGReader:
         next_ifd_offset = 1
         while next_ifd_offset != 0:
             ifd = IFD.read(self._header)
-            print(ifd.tag_count)
             next_ifd_offset = ifd.next_ifd_offset
             self._header.seek(next_ifd_offset)
-
+            self._ifds.append(ifd)
+        return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         # Don't close session if it was instantiated outside the class
