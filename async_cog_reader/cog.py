@@ -25,19 +25,9 @@ class COGReader:
             data = await cog.content.read()
         return data
 
-    async def __aenter__(self):
-        if not self.session:
-            self._session_keep_alive = False
-            self.session = aiohttp.ClientSession()
-
-        # Read first ~16kb of file
-        self._header = BytesCounter(await self.range_request(0, offset=16384))
-
-        # TODO: Wrap a lot of this in a method to make more readable
-        # Read first 4 bytes to determine tiff or bigtiff and byte order
+    def read_header(self):
         if self._header.read(2) == b'MM':
-            self._header._endian = "big"
-
+            self._header._endian = ">"
         self.version = self._header.read(2, cast_to_int=True)
         if self.version == 42:
             self._big_tiff = False
@@ -61,6 +51,13 @@ class COGReader:
             next_ifd_offset = ifd.next_ifd_offset
             self._header.seek(next_ifd_offset)
             self.ifds.append(ifd)
+
+    async def __aenter__(self):
+        if not self.session:
+            self._session_keep_alive = False
+            self.session = aiohttp.ClientSession()
+        self._header = BytesCounter(await self.range_request(0, offset=16384))
+        self.read_header()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
