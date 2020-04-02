@@ -16,7 +16,7 @@ class TagType:
     size: int
 
     def _read(self, header: BytesCounter, count: int) -> Tuple[Any]:
-        return struct.unpack(f"<{count}{self.format}", header.read(self.size * count))
+        return struct.unpack(f"{header._endian}{count}{self.format}", header.read(self.size * count))
 
     def _read_tag_value(self, header: BytesCounter) -> Tuple[Tuple[Any], int, int]:
         count = header.read(4, cast_to_int=True)

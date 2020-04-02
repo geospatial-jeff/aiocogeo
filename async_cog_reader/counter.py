@@ -9,7 +9,7 @@ class BytesCounter:
 
     # Counter to keep track of our current offset within `data`
     _offset: int = 0
-    _endian: str = 'little'
+    _endian: str = '<'
 
     def read(self, offset, cast_to_int=False):
         """
@@ -17,7 +17,8 @@ class BytesCounter:
         """
         data = self.data[self._offset:self._offset+offset]
         self.incr(offset)
-        return int.from_bytes(data, self._endian) if cast_to_int else data
+        order = 'little' if self._endian == '<' else 'big'
+        return int.from_bytes(data, order) if cast_to_int else data
 
     def incr(self, offset):
         """
