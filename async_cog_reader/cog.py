@@ -11,13 +11,13 @@ import aiohttp
 class COGReader:
     filepath: str
     session: Optional[aiohttp.ClientSession] = None
+    ifds: Optional[List[IFD]] = field(default_factory=lambda: [])
 
     _header: Optional[BytesCounter] = None
     _version: Optional[int] = 42
     _big_tiff: Optional[bool] = False
 
     _session_keep_alive: Optional[bool] = True
-    _ifds: Optional[List[IFD]] = field(default_factory=lambda: [])
 
     async def range_request(self, start, offset):
         range_header = {"Range": f"bytes={start}-{start+offset}"}
@@ -60,7 +60,7 @@ class COGReader:
             ifd = IFD.read(self._header)
             next_ifd_offset = ifd.next_ifd_offset
             self._header.seek(next_ifd_offset)
-            self._ifds.append(ifd)
+            self.ifds.append(ifd)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
