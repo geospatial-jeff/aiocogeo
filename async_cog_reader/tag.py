@@ -30,6 +30,7 @@ class TagType:
             header.seek(value_offset)
             value = self._read(header, count)
             header.seek(end_of_tag)
+        value = value[0] if count == 1 else value
         return value, length, count
 
 
@@ -53,6 +54,13 @@ class Tag:
     count: int
     length: int
     value: Tuple[Any]
+
+    def __getitem__(self, key):
+        return self.value[key]
+
+    def __len__(self):
+        return self.count
+
 
     @classmethod
     def read(cls, header: BytesCounter) -> Union[None, "Tag"]:
