@@ -1,3 +1,12 @@
+# TODO: Add more compressions
+COMPRESSIONS = {
+    1: "uncompressed",
+    5: "lzw",
+    6: "jpeg",
+    7: "jpeg",
+    8: "deflate"
+}
+
 # https://github.com/python-pillow/Pillow/blob/master/src/PIL/TiffTags.py
 TIFF_TAGS = {
     254: "NewSubfileType",
