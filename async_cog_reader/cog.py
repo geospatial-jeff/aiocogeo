@@ -1,10 +1,28 @@
 from dataclasses import dataclass, field
+import struct
 from typing import List, Optional
 
+from .constants import COMPRESSIONS
 from .counter import BytesCounter
 from .ifd import IFD
 
 import aiohttp
+from rasterio.io import MemoryFile
+import lzw
+
+
+# TODO: Move this to a `utils` file.  I imagine we'll have a bunch of compression-specific helper methods
+# https://github.com/mapbox/COGDumper/tree/master/cogdumper
+def insert_tables(data, tables):
+    if tables:
+        if data[0] == 0xFF and data[1] == 0xd8:
+            # insert tables, first removing the SOI and EOI
+            return data[0:2] + tables[2:-2] + data[2:]
+        else:
+            raise Exception('Missing SOI marker for JPEG tile')
+    else:
+        # no-op as per the spec, segment contains all of the JPEG data required
+        return data
 
 
 @dataclass
@@ -52,11 +70,34 @@ class COGReader:
             self._header.seek(next_ifd_offset)
             self.ifds.append(ifd)
 
+    # https://github.com/mapbox/COGDumper/blob/master/cogdumper/cog_tiles.py#L337-L365
+    async def get_tile(self, x: int, y: int, z: int) -> bytes:
+        if z > len(self.ifds):
+            raise Exception(f"Overview {z} does not exist.")
+        ifd = self.ifds[z]
+        idx = (y * ifd.tile_count[0]) + x
+        if idx > len(ifd.TileOffsets):
+            raise Exception(f"Tile {x} {y} {z} does not exist")
+        offset = ifd.TileOffsets[idx]
+        byte_count = ifd.TileByteCounts[idx] - 1
+        tile = await self.range_request(offset, byte_count)
+        if COMPRESSIONS[ifd.Compression.value] == "jpeg":
+            # fix up jpeg tile with missing quantization tables
+            jpeg_tables = ifd.JPEGTables
+            # TODO: clean this up
+            jpeg_table_bytes = struct.pack(f"{self._header._endian}{jpeg_tables.count}{jpeg_tables.tag_type.format}", *ifd.JPEGTables.value)
+            # TODO: read mask ifds
+            tile = insert_tables(tile, jpeg_table_bytes)
+        return tile
+
     async def __aenter__(self):
         if not self.session:
             self._session_keep_alive = False
             self.session = aiohttp.ClientSession()
-        self._header = BytesCounter(await self.range_request(0, offset=16384))
+        # Increasing initial offset for now.  We need to request more bytes if the tag value offset is higher than ~16k.
+        # TODO: Implement smarter request logic w/ cache
+        # self._header = BytesCounter(await self.range_request(0, offset=16384))
+        self._header = BytesCounter(await self.range_request(0, offset=85000))
         self.read_header()
         return self
 
