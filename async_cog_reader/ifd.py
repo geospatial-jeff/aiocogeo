@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict
+from typing import Dict, List
 
 from .counter import BytesCounter
 from .tag import Tag
@@ -10,6 +10,13 @@ class IFD:
     next_ifd_offset: int
     tag_count: int
     tags: Dict[str, Tag] # Store tags as dict where key is tag name for easier access
+
+
+    def __getattr__(self, item):
+        if item in ("next_ifd_offset", "tag_count"):
+            return getattr(self, item)
+        else:
+            return self.tags[item]
 
     @classmethod
     def read(cls, header: BytesCounter) -> "IFD":
