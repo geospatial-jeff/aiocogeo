@@ -33,7 +33,7 @@ class TagType:
         return value, length, count
 
 
-FIELD_TYPES = {
+TAG_TYPES = {
     1: TagType(format='B', size=1), # TIFFByte
     2: TagType(format='c', size=1), # TIFFascii
     3: TagType(format='H', size=2), # TIFFshort
@@ -49,7 +49,7 @@ FIELD_TYPES = {
 class Tag:
     code: int
     name: str
-    field_type: TagType
+    tag_type: TagType
     count: int
     length: int
     value: Tuple[Any]
@@ -62,12 +62,12 @@ class Tag:
             header.incr(10)
             return None
         name = TIFF_TAGS[code]
-        field_type = FIELD_TYPES[header.read(2, cast_to_int=True)]
-        value, length, count = field_type._read_tag_value(header)
+        tag_type = TAG_TYPES[header.read(2, cast_to_int=True)]
+        value, length, count = tag_type._read_tag_value(header)
         return Tag(
             code=code,
             name=name,
-            field_type=field_type,
+            tag_type=tag_type,
             count=count,
             length=length,
             value=value
