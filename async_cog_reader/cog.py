@@ -37,6 +37,19 @@ class COGReader:
 
     _session_keep_alive: Optional[bool] = True
 
+    @property
+    def geotransform(self):
+        # xres, xtilt, tlx, yres, ytilt, tlx
+        ifd = self.ifds[0]
+        return (
+            ifd.ModelPixelScaleTag[0],
+            0.0,
+            ifd.ModelTiepointTag[3],
+            -ifd.ModelPixelScaleTag[1],
+            0.0,
+            ifd.ModelTiepointTag[4]
+        )
+
     async def range_request(self, start, offset):
         range_header = {"Range": f"bytes={start}-{start+offset}"}
         async with self.session.get(self.filepath, headers=range_header) as cog:
