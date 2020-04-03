@@ -26,6 +26,10 @@ class IFD:
         else:
             return self.tags[item]
 
+    def __iter__(self):
+        for (_, tag) in self.tags.items():
+            yield tag
+
     @classmethod
     def read(cls, header: BytesCounter) -> "IFD":
         tag_count = header.read(2, cast_to_int=True)

@@ -118,3 +118,7 @@ class COGReader:
         # Don't close session if it was instantiated outside the class
         if not self._session_keep_alive:
             await self.session.close()
+
+    def __iter__(self):
+        for ifd in self.ifds:
+            yield ifd
