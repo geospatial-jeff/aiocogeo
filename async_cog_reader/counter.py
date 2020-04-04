@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import aiohttp
 
 @dataclass
-class BytesCounter:
+class BytesReader:
     """
     Duck-typed file-like object.
     """

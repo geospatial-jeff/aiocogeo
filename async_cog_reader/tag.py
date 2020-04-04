@@ -5,7 +5,7 @@ import warnings
 from typing import Any, Tuple, Union
 
 from .constants import TIFF_TAGS, HEADER_OFFSET
-from .counter import BytesCounter
+from .counter import BytesReader
 
 @dataclass
 class TagType:
@@ -15,26 +15,26 @@ class TagType:
     format: str
     size: int
 
-    async def _read(self, header: BytesCounter, count: int) -> Tuple[Any]:
+    async def _read(self, reader: BytesReader, count: int) -> Tuple[Any]:
         offset = self.size * count
-        if header.tell() + offset > HEADER_OFFSET:
-            data = await header.range_request(header.tell(), offset-1)
+        if reader.tell() + offset > HEADER_OFFSET:
+            data = await reader.range_request(reader.tell(), offset-1)
         else:
-            data = header.read(offset)
-        return struct.unpack(f"{header._endian}{count}{self.format}", data)
+            data = reader.read(offset)
+        return struct.unpack(f"{reader._endian}{count}{self.format}", data)
 
-    async def _read_tag_value(self, header: BytesCounter) -> Tuple[Tuple[Any], int, int]:
-        count = header.read(4, cast_to_int=True)
+    async def _read_tag_value(self, reader: BytesReader) -> Tuple[Tuple[Any], int, int]:
+        count = reader.read(4, cast_to_int=True)
         length = self.size * count
         if length <= 4:
-            value = await self._read(header, count)
-            header.incr(4-length)
+            value = await self._read(reader, count)
+            reader.incr(4-length)
         else:
-            value_offset = header.read(4, cast_to_int=True)
-            end_of_tag = header._offset
-            header.seek(value_offset)
-            value = await self._read(header, count)
-            header.seek(end_of_tag)
+            value_offset = reader.read(4, cast_to_int=True)
+            end_of_tag = reader._offset
+            reader.seek(value_offset)
+            value = await self._read(reader, count)
+            reader.seek(end_of_tag)
         value = value[0] if count == 1 else value
         return value, length, count
 
@@ -68,15 +68,15 @@ class Tag:
 
 
     @classmethod
-    async def read(cls, header: BytesCounter) -> Union[None, "Tag"]:
-        code = header.read(2, cast_to_int=True)
+    async def read(cls, reader: BytesReader) -> Union[None, "Tag"]:
+        code = reader.read(2, cast_to_int=True)
         if code not in TIFF_TAGS:
             warnings.warn(f"TIFF tag {code} is not supported")
-            header.incr(10)
+            reader.incr(10)
             return None
         name = TIFF_TAGS[code]
-        tag_type = TAG_TYPES[header.read(2, cast_to_int=True)]
-        value, length, count = await tag_type._read_tag_value(header)
+        tag_type = TAG_TYPES[reader.read(2, cast_to_int=True)]
+        value, length, count = await tag_type._read_tag_value(reader)
         return Tag(
             code=code,
             name=name,

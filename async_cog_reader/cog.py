@@ -3,7 +3,7 @@ import struct
 from typing import List, Optional
 
 from .constants import COMPRESSIONS
-from .counter import BytesCounter
+from .counter import BytesReader
 from .ifd import IFD
 
 import aiohttp
@@ -31,7 +31,7 @@ class COGReader:
     session: Optional[aiohttp.ClientSession] = None
     ifds: Optional[List[IFD]] = field(default_factory=lambda: [])
 
-    _header: Optional[BytesCounter] = None
+    _bytes_reader: Optional[BytesReader] = None
     _version: Optional[int] = 42
     _big_tiff: Optional[bool] = False
 
@@ -51,13 +51,13 @@ class COGReader:
         )
 
     async def read_header(self):
-        if self._header.read(2) == b'MM':
-            self._header._endian = ">"
-        self.version = self._header.read(2, cast_to_int=True)
+        if self._bytes_reader.read(2) == b'MM':
+            self._bytes_reader._endian = ">"
+        self.version = self._bytes_reader.read(2, cast_to_int=True)
         if self.version == 42:
             self._big_tiff = False
-            first_ifd = self._header.read(4, cast_to_int=True)
-            self._header.seek(first_ifd)
+            first_ifd = self._bytes_reader.read(4, cast_to_int=True)
+            self._bytes_reader.seek(first_ifd)
         elif self.version == 43:
             # TODO: Support BIGTIFF (https://github.com/mapbox/COGDumper/blob/master/cogdumper/cog_tiles.py#L233-L241)
             raise NotImplementedError
@@ -72,9 +72,9 @@ class COGReader:
         # Each IFD is 2 + (12 * N) + 4 bytes
         next_ifd_offset = 1
         while next_ifd_offset != 0:
-            ifd = await IFD.read(self._header)
+            ifd = await IFD.read(self._bytes_reader)
             next_ifd_offset = ifd.next_ifd_offset
-            self._header.seek(next_ifd_offset)
+            self._bytes_reader.seek(next_ifd_offset)
             self.ifds.append(ifd)
 
     # https://github.com/mapbox/COGDumper/blob/master/cogdumper/cog_tiles.py#L337-L365
@@ -87,12 +87,12 @@ class COGReader:
             raise Exception(f"Tile {x} {y} {z} does not exist")
         offset = ifd.TileOffsets[idx]
         byte_count = ifd.TileByteCounts[idx] - 1
-        tile = await self._header.range_request(offset, byte_count)
+        tile = await self._bytes_reader.range_request(offset, byte_count)
         if COMPRESSIONS[ifd.Compression.value] == "jpeg":
             # fix up jpeg tile with missing quantization tables
             jpeg_tables = ifd.JPEGTables
             # TODO: clean this up
-            jpeg_table_bytes = struct.pack(f"{self._header._endian}{jpeg_tables.count}{jpeg_tables.tag_type.format}", *ifd.JPEGTables.value)
+            jpeg_table_bytes = struct.pack(f"{self._bytes_reader._endian}{jpeg_tables.count}{jpeg_tables.tag_type.format}", *ifd.JPEGTables.value)
             # TODO: read mask ifds
             tile = insert_tables(tile, jpeg_table_bytes)
         return tile
@@ -101,8 +101,8 @@ class COGReader:
         if not self.session:
             self._session_keep_alive = False
             self.session = aiohttp.ClientSession()
-        self._header = BytesCounter(b"", self.filepath, self.session)
-        self._header.data = await self._header.range_request(0, HEADER_OFFSET)
+        self._bytes_reader = BytesReader(b"", self.filepath, self.session)
+        self._bytes_reader.data = await self._bytes_reader.range_request(0, HEADER_OFFSET)
         await self.read_header()
         return self
 
