@@ -24,9 +24,51 @@ def insert_tables(data, tables):
         # no-op as per the spec, segment contains all of the JPEG data required
         return data
 
-
 @dataclass
 class COGReader:
+    filepath: str
+    session: Optional[aiohttp.ClientSession] = None
+
+    async def __aenter__(self):
+        session_keep_alive = True
+        if not self.session:
+            session_keep_alive = False
+            self.session = aiohttp.ClientSession()
+        bytes_reader = BytesReader(b"", self.filepath, self.session)
+        bytes_reader.data = await bytes_reader.range_request(0, HEADER_OFFSET)
+        if bytes_reader.read(2) == b'MM':
+            bytes_reader._endian = ">"
+        version = bytes_reader.read(2, cast_to_int=True)
+        if version == 42:
+            first_ifd = bytes_reader.read(4, cast_to_int=True)
+            bytes_reader.seek(first_ifd)
+            async with COGTiff(
+                filepath=self.filepath,
+                session=self.session,
+                _bytes_reader=bytes_reader,
+                _session_keep_alive=session_keep_alive
+            ) as cog:
+                return cog
+        elif version == 43:
+            async with COGBigTiff() as cog:
+                return cog
+        else:
+            raise InvalidTiffError("Not a valid TIFF")
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        ...
+
+@dataclass
+class COGBigTiff:
+
+    async def __aenter__(self):
+        ...
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        ...
+
+@dataclass
+class COGTiff:
     filepath: str
     session: Optional[aiohttp.ClientSession] = None
     ifds: Optional[List[IFD]] = field(default_factory=lambda: [])
@@ -36,6 +78,7 @@ class COGReader:
     _big_tiff: Optional[bool] = False
 
     _session_keep_alive: Optional[bool] = True
+
 
     @property
     def geotransform(self):
@@ -58,25 +101,6 @@ class COGReader:
                 return ifd.GeoKeyDirectoryTag[idx+3]
 
     async def read_header(self):
-        if self._bytes_reader.read(2) == b'MM':
-            self._bytes_reader._endian = ">"
-        self.version = self._bytes_reader.read(2, cast_to_int=True)
-        if self.version == 42:
-            self._big_tiff = False
-            first_ifd = self._bytes_reader.read(4, cast_to_int=True)
-            self._bytes_reader.seek(first_ifd)
-        elif self.version == 43:
-            # TODO: Support BIGTIFF (https://github.com/mapbox/COGDumper/blob/master/cogdumper/cog_tiles.py#L233-L241)
-            raise NotImplementedError
-        else:
-            # TODO: Throw custom exception
-            raise InvalidTiffError("Not a valid TIFF")
-
-        # IFD structure is:
-        #   - 2 bytes for the number of tags
-        #   - 12 bytes for the tag data itself (one for each tag)
-        #   - 4 bytes for the offset to next IFD
-        # Each IFD is 2 + (12 * N) + 4 bytes
         next_ifd_offset = 1
         while next_ifd_offset != 0:
             ifd = await IFD.read(self._bytes_reader)
@@ -105,11 +129,6 @@ class COGReader:
         return tile
 
     async def __aenter__(self):
-        if not self.session:
-            self._session_keep_alive = False
-            self.session = aiohttp.ClientSession()
-        self._bytes_reader = BytesReader(b"", self.filepath, self.session)
-        self._bytes_reader.data = await self._bytes_reader.range_request(0, HEADER_OFFSET)
         await self.read_header()
         return self
 
@@ -121,3 +140,5 @@ class COGReader:
     def __iter__(self):
         for ifd in self.ifds:
             yield ifd
+
+
