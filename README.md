@@ -1,4 +1,4 @@
-# [WIP] async-cog-reader
+# [WIP] async-cog-reader [![CircleCI](https://circleci.com/gh/geospatial-jeff/async-cog-reader/tree/master.svg?style=svg)](https://circleci.com/gh/geospatial-jeff/async-cog-reader/tree/master)
 
 
 #### Usage
