@@ -20,10 +20,7 @@ class IFD:
         )
 
     def __getattr__(self, item):
-        if item in ("next_ifd_offset", "tag_count"):
-            return getattr(self, item)
-        else:
-            return self.tags[item]
+        return self.tags[item]
 
     def __iter__(self):
         for (_, tag) in self.tags.items():
