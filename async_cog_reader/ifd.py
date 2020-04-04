@@ -1,11 +1,10 @@
 from dataclasses import dataclass
 import math
-from typing import Dict, List
+from typing import Dict
 
 from .counter import BytesCounter
 from .tag import Tag
 
-from cogdumper.cog_tiles import COGTiff
 
 @dataclass
 class IFD:
@@ -31,8 +30,8 @@ class IFD:
             yield tag
 
     @classmethod
-    def read(cls, header: BytesCounter) -> "IFD":
+    async def read(cls, header: BytesCounter) -> "IFD":
         tag_count = header.read(2, cast_to_int=True)
-        tiff_tags = {tag.name:tag for tag in list(filter(None, [Tag.read(header) for _ in range(tag_count)]))}
+        tiff_tags = {tag.name:tag for tag in list(filter(None, [(await Tag.read(header)) for _ in range(tag_count)]))}
         next_ifd_offset = header.read(4, cast_to_int=True)
         return cls(next_ifd_offset, tag_count, tiff_tags)

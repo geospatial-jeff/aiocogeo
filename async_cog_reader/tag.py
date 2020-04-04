@@ -4,7 +4,7 @@ import warnings
 
 from typing import Any, Tuple, Union
 
-from .constants import TIFF_TAGS
+from .constants import TIFF_TAGS, HEADER_OFFSET
 from .counter import BytesCounter
 
 @dataclass
@@ -15,20 +15,25 @@ class TagType:
     format: str
     size: int
 
-    def _read(self, header: BytesCounter, count: int) -> Tuple[Any]:
-        return struct.unpack(f"{header._endian}{count}{self.format}", header.read(self.size * count))
+    async def _read(self, header: BytesCounter, count: int) -> Tuple[Any]:
+        offset = self.size * count
+        if header.tell() + offset > HEADER_OFFSET:
+            data = await header.range_request(header.tell(), offset-1)
+        else:
+            data = header.read(offset)
+        return struct.unpack(f"{header._endian}{count}{self.format}", data)
 
-    def _read_tag_value(self, header: BytesCounter) -> Tuple[Tuple[Any], int, int]:
+    async def _read_tag_value(self, header: BytesCounter) -> Tuple[Tuple[Any], int, int]:
         count = header.read(4, cast_to_int=True)
         length = self.size * count
         if length <= 4:
-            value = self._read(header, count)
+            value = await self._read(header, count)
             header.incr(4-length)
         else:
             value_offset = header.read(4, cast_to_int=True)
             end_of_tag = header._offset
             header.seek(value_offset)
-            value = self._read(header, count)
+            value = await self._read(header, count)
             header.seek(end_of_tag)
         value = value[0] if count == 1 else value
         return value, length, count
@@ -63,7 +68,7 @@ class Tag:
 
 
     @classmethod
-    def read(cls, header: BytesCounter) -> Union[None, "Tag"]:
+    async def read(cls, header: BytesCounter) -> Union[None, "Tag"]:
         code = header.read(2, cast_to_int=True)
         if code not in TIFF_TAGS:
             warnings.warn(f"TIFF tag {code} is not supported")
@@ -71,7 +76,7 @@ class Tag:
             return None
         name = TIFF_TAGS[code]
         tag_type = TAG_TYPES[header.read(2, cast_to_int=True)]
-        value, length, count = tag_type._read_tag_value(header)
+        value, length, count = await tag_type._read_tag_value(header)
         return Tag(
             code=code,
             name=name,

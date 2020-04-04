@@ -1,4 +1,7 @@
 # TODO: Add more compressions
+
+HEADER_OFFSET = 16384
+
 COMPRESSIONS = {
     1: "uncompressed",
     5: "lzw",
