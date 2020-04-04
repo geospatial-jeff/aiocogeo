@@ -7,6 +7,7 @@ setup(
     author_email="geospatialjeff@gmail.com",
     url="https://github.com/geospatial-jeff/async-cog-reader",
     license="mit",
+    python_requires=">=3.7",
     install_requires=[
         "aiohttp",
     ],
