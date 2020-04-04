@@ -19,11 +19,10 @@ class BytesReader:
 
 
     async def range_request(self, start, offset):
-        end = start + offset
-        range_header = {"Range": f"bytes={start}-{end}"}
+        range_header = {"Range": f"bytes={start}-{start + offset}"}
         async with self.session.get(self.filepath, headers=range_header) as cog:
             data = await cog.content.read()
-            self._total_bytes_requested += end
+            self._total_bytes_requested += int(cog.headers['Content-Length'])
             self._total_requests += 1
         return data
 
