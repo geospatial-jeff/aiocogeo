@@ -27,8 +27,7 @@ jobs:
       # https://nose.readthedocs.io
       - run:
           name: run tests
-          command: |
-            python setup.py pytest
+          command: python setup.py pytest
 
       - store_artifacts:
           path: test-reports
