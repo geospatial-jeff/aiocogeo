@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(
-    name="async-cog-tiler",
+    name="async-cog-reader",
     version="0.1",
     author=u"Jeff Albrecht",
     author_email="geospatialjeff@gmail.com",
