@@ -10,6 +10,11 @@ COMPRESSIONS = {
     8: "deflate"
 }
 
+INTERLEAVE = {
+    1: "pixel",
+    2: "band"
+}
+
 # https://github.com/python-pillow/Pillow/blob/master/src/PIL/TiffTags.py
 TIFF_TAGS = {
     254: "NewSubfileType",
