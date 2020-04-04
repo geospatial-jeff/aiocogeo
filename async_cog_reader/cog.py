@@ -24,7 +24,6 @@ def insert_tables(data, tables):
         # no-op as per the spec, segment contains all of the JPEG data required
         return data
 
-# This pattern sucks but its fine for now
 
 @dataclass
 class COGReader:
@@ -50,6 +49,13 @@ class COGReader:
             -ifd.ModelPixelScaleTag[1],
             ifd.ModelTiepointTag[4]
         )
+
+    @property
+    def epsg(self):
+        ifd = self.ifds[0]
+        for idx in range(0, len(ifd.GeoKeyDirectoryTag), 4):
+            if ifd.GeoKeyDirectoryTag[idx] == 3072:
+                return ifd.GeoKeyDirectoryTag[idx+3]
 
     async def read_header(self):
         if self._bytes_reader.read(2) == b'MM':

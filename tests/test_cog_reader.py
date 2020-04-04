@@ -25,6 +25,7 @@ async def test_cog_metadata(infile, create_cog_reader):
             assert profile['blockysize'] == first_ifd.TileHeight.value
             assert profile['compress'] == COMPRESSIONS[first_ifd.Compression.value]
             assert profile['interleave'] == INTERLEAVE[first_ifd.PlanarConfiguration.value]
+            assert profile['crs'].to_epsg() == cog.epsg
 
 
 @pytest.mark.asyncio
