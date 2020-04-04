@@ -59,7 +59,7 @@ class COGReader:
         ...
 
 @dataclass
-class COGBigTiff:
+class COGBigTiff(COGReader):
 
     async def __aenter__(self):
         ...
@@ -68,9 +68,7 @@ class COGBigTiff:
         ...
 
 @dataclass
-class COGTiff:
-    filepath: str
-    session: Optional[aiohttp.ClientSession] = None
+class COGTiff(COGReader):
     ifds: Optional[List[IFD]] = field(default_factory=lambda: [])
 
     _bytes_reader: Optional[BytesReader] = None
