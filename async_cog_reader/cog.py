@@ -4,6 +4,7 @@ from typing import List, Optional
 
 from .constants import COMPRESSIONS
 from .counter import BytesReader
+from .errors import InvalidTiffError, TileNotFoundError
 from .ifd import IFD
 
 import aiohttp
@@ -45,8 +46,8 @@ class COGReader:
             ifd.ModelPixelScaleTag[0],
             0.0,
             ifd.ModelTiepointTag[3],
-            -ifd.ModelPixelScaleTag[1],
             0.0,
+            -ifd.ModelPixelScaleTag[1],
             ifd.ModelTiepointTag[4]
         )
 
@@ -63,7 +64,7 @@ class COGReader:
             raise NotImplementedError
         else:
             # TODO: Throw custom exception
-            raise Exception("Not a valid TIFF")
+            raise InvalidTiffError("Not a valid TIFF")
 
         # IFD structure is:
         #   - 2 bytes for the number of tags
@@ -80,11 +81,11 @@ class COGReader:
     # https://github.com/mapbox/COGDumper/blob/master/cogdumper/cog_tiles.py#L337-L365
     async def get_tile(self, x: int, y: int, z: int) -> bytes:
         if z > len(self.ifds):
-            raise Exception(f"Overview {z} does not exist.")
+            raise TileNotFoundError(f"Overview {z} does not exist.")
         ifd = self.ifds[z]
         idx = (y * ifd.tile_count[0]) + x
         if idx > len(ifd.TileOffsets):
-            raise Exception(f"Tile {x} {y} {z} does not exist")
+            raise TileNotFoundError(f"Tile {x} {y} {z} does not exist")
         offset = ifd.TileOffsets[idx]
         byte_count = ifd.TileByteCounts[idx] - 1
         tile = await self._bytes_reader.range_request(offset, byte_count)
