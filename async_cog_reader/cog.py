@@ -95,7 +95,9 @@ class COGTiff(COGReader):
     def epsg(self):
         ifd = self.ifds[0]
         for idx in range(0, len(ifd.GeoKeyDirectoryTag), 4):
-            if ifd.GeoKeyDirectoryTag[idx] == 3072:
+            # 2048 is geographic crs
+            # 3072 is projected crs
+            if ifd.GeoKeyDirectoryTag[idx] in (2048, 3072):
                 return ifd.GeoKeyDirectoryTag[idx+3]
 
     async def read_header(self):
