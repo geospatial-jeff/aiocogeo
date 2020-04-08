@@ -11,8 +11,6 @@ import aiohttp
 from .constants import HEADER_OFFSET, SAMPLE_DTYPES
 import imagecodecs
 import numpy as np
-from io import BytesIO
-from PIL import Image
 
 
 # TODO: Move this to a `utils` file.  I imagine we'll have a bunch of compression-specific helper methods
