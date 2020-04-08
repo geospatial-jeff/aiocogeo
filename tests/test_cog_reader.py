@@ -1,6 +1,8 @@
 import pytest
 
+import numpy as np
 import rasterio
+from rasterio.windows import Window
 from rasterio import Affine
 
 from async_cog_reader.ifd import IFD
@@ -26,6 +28,26 @@ async def test_cog_metadata(infile, create_cog_reader):
             assert profile['compress'] == COMPRESSIONS[first_ifd.Compression.value]
             assert profile['interleave'] == INTERLEAVE[first_ifd.PlanarConfiguration.value]
             assert profile['crs'].to_epsg() == cog.epsg
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("infile", TEST_DATA)
+async def test_cog_read_tile(infile, create_cog_reader):
+    async with create_cog_reader(infile) as cog:
+        # Read top left tile at native resolution
+        tile = await cog.get_tile(0,0,0)
+        ifd = cog.ifds[0]
+
+        # Make sure tile is the right size
+        assert tile.shape == (ifd.TileHeight.value, ifd.TileWidth.value, ifd.SamplesPerPixel.value)
+
+        # Rearrange numpy array to match rasterio
+        tile = np.rollaxis(tile, 2, 0)
+
+        with rasterio.open(infile) as src:
+            rio_tile = src.read(window=Window(0, 0, ifd.TileWidth.value, ifd.TileHeight.value))
+            assert rio_tile.shape == tile.shape
+            assert np.allclose(tile, rio_tile, rtol=1)
+
 
 
 @pytest.mark.asyncio
