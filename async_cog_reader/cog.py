@@ -8,7 +8,11 @@ from .errors import InvalidTiffError, TileNotFoundError
 from .ifd import IFD
 
 import aiohttp
-from .constants import HEADER_OFFSET
+from .constants import HEADER_OFFSET, SAMPLE_DTYPES
+import imagecodecs
+import numpy as np
+from io import BytesIO
+from PIL import Image
 
 
 # TODO: Move this to a `utils` file.  I imagine we'll have a bunch of compression-specific helper methods
@@ -24,13 +28,14 @@ def insert_tables(data, tables):
         # no-op as per the spec, segment contains all of the JPEG data required
         return data
 
+
 @dataclass
 class COGReader:
     filepath: str
     session: Optional[aiohttp.ClientSession] = None
 
     async def __aenter__(self):
-        session_keep_alive = True
+        self._session_keep_alive = True
         if not self.session:
             session_keep_alive = False
             self.session = aiohttp.ClientSession()
@@ -46,7 +51,7 @@ class COGReader:
                 filepath=self.filepath,
                 session=self.session,
                 _bytes_reader=bytes_reader,
-                _session_keep_alive=session_keep_alive
+                _session_keep_alive=self._session_keep_alive
             ) as cog:
                 return cog
         elif version == 43:
@@ -56,8 +61,9 @@ class COGReader:
             raise InvalidTiffError("Not a valid TIFF")
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        ...
-
+        # Don't close session if it was instantiated outside the class
+        if not self._session_keep_alive:
+            await self.session.close()
 @dataclass
 class COGBigTiff(COGReader):
 
@@ -119,23 +125,36 @@ class COGTiff(COGReader):
         offset = ifd.TileOffsets[idx]
         byte_count = ifd.TileByteCounts[idx] - 1
         tile = await self._bytes_reader.range_request(offset, byte_count)
-        if COMPRESSIONS[ifd.Compression.value] == "jpeg":
-            # fix up jpeg tile with missing quantization tables
+        compression = COMPRESSIONS[ifd.Compression.value]
+
+        # Assuming all bands are the same
+        dtype = np.dtype(SAMPLE_DTYPES[(ifd.SampleFormat.value[0], ifd.BitsPerSample.value[0])])
+
+        if compression == "lzw":
+            decoded = imagecodecs.lzw_decode(tile)
+            decoded = np.frombuffer(decoded, dtype).reshape(ifd.TileHeight.value, ifd.TileWidth.value, ifd.SamplesPerPixel.value)
+            # Unpredict if there is horizontal differencing
+            if ifd.Predictor.value == 2:
+                imagecodecs.delta_decode(decoded, out=decoded, axis=-1)
+        elif compression == "jpeg":
             jpeg_tables = ifd.JPEGTables
-            # TODO: clean this up
-            jpeg_table_bytes = struct.pack(f"{self._bytes_reader._endian}{jpeg_tables.count}{jpeg_tables.tag_type.format}", *ifd.JPEGTables.value)
-            # TODO: read mask ifds
+            jpeg_table_bytes = struct.pack(
+                f"{self._bytes_reader._endian}{jpeg_tables.count}{jpeg_tables.tag_type.format}", *ifd.JPEGTables.value
+            )
             tile = insert_tables(tile, jpeg_table_bytes)
-        return tile
+            decoded = imagecodecs.jpeg_decode(tile)
+        else:
+            raise NotImplementedError(f"{compression} compression is not currently supported")
+
+        return decoded
+
 
     async def __aenter__(self):
         await self.read_header()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        # Don't close session if it was instantiated outside the class
-        if not self._session_keep_alive:
-            await self.session.close()
+        ...
 
     def __iter__(self):
         for ifd in self.ifds:
