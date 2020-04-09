@@ -7,7 +7,8 @@ COMPRESSIONS = {
     5: "lzw",
     6: "jpeg",
     7: "jpeg",
-    8: "deflate"
+    8: "deflate",
+    50001: "webp"
 }
 
 INTERLEAVE = {

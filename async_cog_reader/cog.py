@@ -141,6 +141,8 @@ class COGTiff(COGReader):
             )
             tile = insert_tables(tile, jpeg_table_bytes)
             decoded = imagecodecs.jpeg_decode(tile)
+        elif compression == "webp":
+            decoded = imagecodecs.webp_decode(tile)
         else:
             raise NotImplementedError(f"{compression} compression is not currently supported")
 
