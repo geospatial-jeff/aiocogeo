@@ -22,7 +22,7 @@ async def test_cog_metadata(infile, create_cog_reader):
             profile = ds.profile
             assert profile['width'] == first_ifd.ImageWidth.value
             assert profile['height'] == first_ifd.ImageHeight.value
-            assert profile['transform'] == Affine(*cog.geotransform)
+            assert profile['transform'] == cog.geotransform
             assert profile['blockxsize'] == first_ifd.TileWidth.value
             assert profile['blockysize'] == first_ifd.TileHeight.value
             assert profile['compress'] == COMPRESSIONS[first_ifd.Compression.value]

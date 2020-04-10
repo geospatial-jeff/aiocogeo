@@ -10,6 +10,7 @@ setup(
     python_requires=">=3.7",
     install_requires=[
         "aiohttp",
+        "affine",
         "imagecodecs",
     ],
     test_suite="tests",

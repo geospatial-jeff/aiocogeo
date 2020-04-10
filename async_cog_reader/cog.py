@@ -7,6 +7,7 @@ from .errors import InvalidTiffError, TileNotFoundError
 from .ifd import IFD
 
 import aiohttp
+import affine
 from .constants import HEADER_OFFSET
 
 
@@ -69,7 +70,7 @@ class COGTiff(COGReader):
     def geotransform(self):
         # xres, xtilt, tlx, yres, ytilt, tlx
         ifd = self.ifds[0]
-        return (
+        return affine.Affine(
             ifd.ModelPixelScaleTag[0],
             0.0,
             ifd.ModelTiepointTag[3],
