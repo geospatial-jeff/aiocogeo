@@ -1,31 +1,13 @@
 from dataclasses import dataclass, field
-import struct
 from typing import List, Optional
 
 from .compression import Compressions
-from .constants import COMPRESSIONS
 from .counter import BytesReader
 from .errors import InvalidTiffError, TileNotFoundError
 from .ifd import IFD
 
 import aiohttp
-from .constants import HEADER_OFFSET, SAMPLE_DTYPES
-import imagecodecs
-import numpy as np
-
-
-# TODO: Move this to a `utils` file.  I imagine we'll have a bunch of compression-specific helper methods
-# https://github.com/mapbox/COGDumper/tree/master/cogdumper
-def insert_tables(data, tables):
-    if tables:
-        if data[0] == 0xFF and data[1] == 0xd8:
-            # insert tables, first removing the SOI and EOI
-            return data[0:2] + tables[2:-2] + data[2:]
-        else:
-            raise Exception('Missing SOI marker for JPEG tile')
-    else:
-        # no-op as per the spec, segment contains all of the JPEG data required
-        return data
+from .constants import HEADER_OFFSET
 
 
 @dataclass
