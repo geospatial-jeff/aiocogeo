@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 import struct
 from typing import List, Optional
 
+from .compression import Compressions
 from .constants import COMPRESSIONS
 from .counter import BytesReader
 from .errors import InvalidTiffError, TileNotFoundError
@@ -123,31 +124,8 @@ class COGTiff(COGReader):
         offset = ifd.TileOffsets[idx]
         byte_count = ifd.TileByteCounts[idx] - 1
         tile = await self._bytes_reader.range_request(offset, byte_count)
-        compression = COMPRESSIONS[ifd.Compression.value]
-
-        # Assuming all bands are the same
-        dtype = np.dtype(SAMPLE_DTYPES[(ifd.SampleFormat.value[0], ifd.BitsPerSample.value[0])])
-
-        if compression == "lzw":
-            decoded = imagecodecs.lzw_decode(tile)
-            decoded = np.frombuffer(decoded, dtype).reshape(ifd.TileHeight.value, ifd.TileWidth.value, ifd.SamplesPerPixel.value)
-            # Unpredict if there is horizontal differencing
-            if ifd.Predictor.value == 2:
-                imagecodecs.delta_decode(decoded, out=decoded, axis=-1)
-        elif compression == "jpeg":
-            jpeg_tables = ifd.JPEGTables
-            jpeg_table_bytes = struct.pack(
-                f"{self._bytes_reader._endian}{jpeg_tables.count}{jpeg_tables.tag_type.format}", *ifd.JPEGTables.value
-            )
-            tile = insert_tables(tile, jpeg_table_bytes)
-            decoded = imagecodecs.jpeg_decode(tile)
-        elif compression == "webp":
-            decoded = imagecodecs.webp_decode(tile)
-        else:
-            raise NotImplementedError(f"{compression} compression is not currently supported")
-
+        decoded = Compressions(ifd, self._bytes_reader, tile).decompress()
         return decoded
-
 
     async def __aenter__(self):
         await self.read_header()
