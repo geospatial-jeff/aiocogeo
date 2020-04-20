@@ -75,7 +75,7 @@ class Tag:
         code = await reader.read(2, cast_to_int=True)
         if code not in TIFF_TAGS:
             warnings.warn(f"TIFF tag {code} is not supported")
-            reader.incr(10)
+            reader.incr(12)
             return None
         name = TIFF_TAGS[code]
         # 2-4 bytes contain data type
