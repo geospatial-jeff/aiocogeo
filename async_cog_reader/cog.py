@@ -89,6 +89,11 @@ class COGTiff(COGReader):
                 return ifd.GeoKeyDirectoryTag[idx+3]
 
 
+    @property
+    def overviews(self):
+        return [2 ** (ifd+1) for ifd in range(len(self.ifds)-1)]
+
+
     async def read_header(self):
         next_ifd_offset = 1
         while next_ifd_offset != 0:
