@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 import aiohttp
+from .constants import HEADER_OFFSET
 
 @dataclass
 class BytesReader:
@@ -26,10 +27,12 @@ class BytesReader:
             self._total_requests += 1
         return data
 
-    def read(self, offset, cast_to_int=False):
+    async def read(self, offset, cast_to_int=False):
         """
         Read <offset> number of bytes past the current `self._offset` and increment `self._offset`.
         """
+        if self._offset+offset > len(self.data):
+            self.data += await self.range_request(len(self.data), HEADER_OFFSET)
         data = self.data[self._offset:self._offset+offset]
         self.incr(offset)
         order = 'little' if self._endian == '<' else 'big'

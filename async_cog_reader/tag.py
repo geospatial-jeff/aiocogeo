@@ -20,18 +20,20 @@ class TagType:
         if reader.tell() + offset > HEADER_OFFSET:
             data = await reader.range_request(reader.tell(), offset-1)
         else:
-            data = reader.read(offset)
+            data = await reader.read(offset)
         return struct.unpack(f"{reader._endian}{count}{self.format}", data)
 
     async def _read_tag_value(self, reader: BytesReader) -> Tuple[Tuple[Any], int, int]:
-        count = reader.read(4, cast_to_int=True)
+        # 4-8 bytes contain number of tag values
+        count = await reader.read(4, cast_to_int=True)
         length = self.size * count
+        # 8-12 bytes contain either (a) tag value or (b) offset to tag value
         if length <= 4:
             value = await self._read(reader, count)
             reader.incr(4-length)
         else:
-            value_offset = reader.read(4, cast_to_int=True)
-            end_of_tag = reader._offset
+            value_offset = await reader.read(4, cast_to_int=True)
+            end_of_tag = reader.tell()
             reader.seek(value_offset)
             value = await self._read(reader, count)
             reader.seek(end_of_tag)
@@ -69,13 +71,15 @@ class Tag:
 
     @classmethod
     async def read(cls, reader: BytesReader) -> Union[None, "Tag"]:
-        code = reader.read(2, cast_to_int=True)
+        # 0-2 bytes of tag contains TAG NUMBER
+        code = await reader.read(2, cast_to_int=True)
         if code not in TIFF_TAGS:
             warnings.warn(f"TIFF tag {code} is not supported")
             reader.incr(10)
             return None
         name = TIFF_TAGS[code]
-        tag_type = TAG_TYPES[reader.read(2, cast_to_int=True)]
+        # 2-4 bytes contain data type
+        tag_type = TAG_TYPES[(await reader.read(2, cast_to_int=True))]
         value, length, count = await tag_type._read_tag_value(reader)
         return Tag(
             code=code,

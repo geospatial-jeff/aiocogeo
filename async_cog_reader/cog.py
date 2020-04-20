@@ -23,11 +23,11 @@ class COGReader:
             self.session = aiohttp.ClientSession()
         bytes_reader = BytesReader(b"", self.filepath, self.session)
         bytes_reader.data = await bytes_reader.range_request(0, HEADER_OFFSET)
-        if bytes_reader.read(2) == b'MM':
+        if (await bytes_reader.read(2)) == b'MM':
             bytes_reader._endian = ">"
-        version = bytes_reader.read(2, cast_to_int=True)
+        version = await bytes_reader.read(2, cast_to_int=True)
         if version == 42:
-            first_ifd = bytes_reader.read(4, cast_to_int=True)
+            first_ifd = await bytes_reader.read(4, cast_to_int=True)
             bytes_reader.seek(first_ifd)
             async with COGTiff(
                 filepath=self.filepath,
@@ -88,6 +88,7 @@ class COGTiff(COGReader):
             if ifd.GeoKeyDirectoryTag[idx] in (2048, 3072):
                 return ifd.GeoKeyDirectoryTag[idx+3]
 
+
     async def read_header(self):
         next_ifd_offset = 1
         while next_ifd_offset != 0:
@@ -95,6 +96,7 @@ class COGTiff(COGReader):
             next_ifd_offset = ifd.next_ifd_offset
             self._bytes_reader.seek(next_ifd_offset)
             self.ifds.append(ifd)
+
 
     # https://github.com/mapbox/COGDumper/blob/master/cogdumper/cog_tiles.py#L337-L365
     async def get_tile(self, x: int, y: int, z: int) -> bytes:
@@ -109,6 +111,7 @@ class COGTiff(COGReader):
         tile = await self._bytes_reader.range_request(offset, byte_count)
         decoded = Compressions(ifd, self._bytes_reader, tile).decompress()
         return decoded
+
 
     async def __aenter__(self):
         await self.read_header()
