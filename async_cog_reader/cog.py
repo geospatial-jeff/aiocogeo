@@ -1,15 +1,17 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
 
+import aiohttp
+import affine
+from rasterio.crs import CRS
+from rasterio.transform import array_bounds, from_bounds
+from rasterio.warp import calculate_default_transform
+
+from .constants import HEADER_OFFSET, WEB_MERCATOR_EPSG
 from .compression import Compressions
 from .counter import BytesReader
 from .errors import InvalidTiffError, TileNotFoundError
 from .ifd import IFD
-
-import aiohttp
-import affine
-from .constants import HEADER_OFFSET
-
 
 @dataclass
 class COGReader:
@@ -102,6 +104,38 @@ class COGTiff(COGReader):
             self._bytes_reader.seek(next_ifd_offset)
             self.ifds.append(ifd)
 
+    def _get_overview_level(self, width, height):
+        """
+        https://github.com/cogeotiff/rio-tiler/blob/v2/rio_tiler/utils.py#L79-L135
+        """
+        native_bounds = array_bounds(self.ifds[0].ImageHeight.value, self.ifds[0].ImageWidth.value, self.geotransform)
+
+        proj_transform, _, _ = calculate_default_transform(
+            CRS.from_epsg(self.epsg),
+            CRS.from_epsg(WEB_MERCATOR_EPSG),
+            self.ifds[0].ImageWidth.value,
+            self.ifds[0].ImageHeight.value,
+            *native_bounds
+        )
+        native_res = proj_transform.a
+
+        dst_transform = from_bounds(*native_bounds, width, height)
+        target_res = dst_transform.a
+
+        ovr_idx = -1
+        if target_res > native_res:
+            res = [native_res * decim for decim in self.overviews]
+
+            for ovr_idx in range(ovr_idx, len(res) - 1):
+                ovrRes = native_res if ovr_idx < 0 else res[ovr_idx]
+                nextRes = res[ovr_idx + 1]
+                if (ovrRes < target_res) and (nextRes > target_res):
+                    break
+                if abs(ovrRes - target_res) < 1e-1:
+                    break
+            else:
+                ovr_idx = len(res) - 1
+        return ovr_idx
 
     # https://github.com/mapbox/COGDumper/blob/master/cogdumper/cog_tiles.py#L337-L365
     async def get_tile(self, x: int, y: int, z: int) -> bytes:

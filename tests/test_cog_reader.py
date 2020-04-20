@@ -3,7 +3,7 @@ import pytest
 import numpy as np
 import rasterio
 from rasterio.windows import Window
-from rasterio import Affine
+from rio_tiler import utils as rio_tiler_utils
 
 from async_cog_reader.ifd import IFD
 from async_cog_reader.tag import Tag
@@ -49,6 +49,20 @@ async def test_cog_read_tile(infile, create_cog_reader):
             assert rio_tile.shape == tile.shape
             assert np.allclose(tile, rio_tile, rtol=1)
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("width,height",[(500,500),(1000,1000),(5000,5000),(10000,10000)])
+async def test_cog_get_overview_level(create_cog_reader, width, height):
+    async with create_cog_reader(TEST_DATA[0]) as cog:
+        ovr = cog._get_overview_level(width, height)
+
+        with rasterio.open(TEST_DATA[0]) as src:
+            expected_ovr = rio_tiler_utils.get_overview_level(
+                src,
+                src.bounds,
+                height,
+                width
+            )
+            assert ovr == expected_ovr
 
 
 @pytest.mark.asyncio

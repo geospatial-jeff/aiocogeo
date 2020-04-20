@@ -2,6 +2,8 @@
 
 HEADER_OFFSET = 16384
 
+WEB_MERCATOR_EPSG = 3857
+
 COMPRESSIONS = {
     1: "uncompressed",
     5: "lzw",

@@ -10,8 +10,8 @@ setup(
     python_requires=">=3.7",
     install_requires=[
         "aiohttp",
-        "affine",
         "imagecodecs",
+        "rasterio",
     ],
     test_suite="tests",
     setup_requires=[
@@ -21,6 +21,7 @@ setup(
         "pytest",
         "pytest-asyncio",
         "pytest-cov",
-        "rasterio"
+        "rasterio",
+        "rio-tiler==2.0a4"
     ]
 )
