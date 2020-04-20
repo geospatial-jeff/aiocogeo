@@ -30,7 +30,12 @@ class IFD:
     async def read(cls, reader: BytesReader) -> "IFD":
         ifd_start = reader.tell()
         tag_count = await reader.read(2, cast_to_int=True)
-        tiff_tags = {tag.name:tag for tag in list(filter(None, [(await Tag.read(reader)) for _ in range(tag_count)]))}
+        tiff_tags = {}
+        # Read tags
+        for idx in range(tag_count):
+            tag = await Tag.read(reader)
+            if tag:
+                tiff_tags[tag.name] = tag
         reader.seek(ifd_start + (12 * tag_count) + 2)
         next_ifd_offset = await reader.read(4, cast_to_int=True)
         return cls(next_ifd_offset, tag_count, tiff_tags)
