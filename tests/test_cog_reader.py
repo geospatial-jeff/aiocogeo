@@ -30,6 +30,30 @@ async def test_cog_metadata(infile, create_cog_reader):
             assert profile['crs'].to_epsg() == cog.epsg
             assert ds.overviews(1) == cog.overviews
 
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("infile", TEST_DATA)
+async def test_cog_metadata_overviews(infile, create_cog_reader):
+    async with create_cog_reader(infile) as cog:
+        for idx, ifd in enumerate(cog.ifds):
+            width = ifd.ImageWidth.value
+            height = ifd.ImageHeight.value
+            try:
+                # Test decimation of 2
+                next_ifd = cog.ifds[idx+1]
+                next_width = next_ifd.ImageWidth.value
+                next_height = next_ifd.ImageHeight.value
+                assert pytest.approx(width / next_width, 5) == 2.0
+                assert pytest.approx(height / next_height, 5) == 2.0
+
+                # Test number of tiles
+                tile_count = ifd.tile_count[0] * ifd.tile_count[1]
+                next_tile_count = next_ifd.tile_count[0] * next_ifd.tile_count[1]
+                assert pytest.approx((max(tile_count, next_tile_count) / min(tile_count, next_tile_count)), 3) == 4.0
+            except IndexError:
+                pass
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("infile", TEST_DATA)
 async def test_cog_read_tile(infile, create_cog_reader):
