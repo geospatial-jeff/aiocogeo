@@ -10,8 +10,9 @@ setup(
     python_requires=">=3.7",
     install_requires=[
         "aiohttp",
+        "affine",
         "imagecodecs",
-        "rasterio",
+        "scikit-image"
     ],
     test_suite="tests",
     setup_requires=[

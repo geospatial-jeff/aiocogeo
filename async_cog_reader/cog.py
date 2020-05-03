@@ -1,17 +1,20 @@
+import asyncio
 from dataclasses import dataclass, field
+from functools import partial
+import math
 from typing import List, Optional
 
 import aiohttp
 import affine
-from rasterio.crs import CRS
-from rasterio.transform import array_bounds, from_bounds
-from rasterio.warp import calculate_default_transform
+import numpy as np
+from skimage.transform import resize
 
-from .constants import HEADER_OFFSET, WEB_MERCATOR_EPSG
+from .constants import HEADER_OFFSET
 from .compression import Compressions
 from .counter import BytesReader
 from .errors import InvalidTiffError, TileNotFoundError
 from .ifd import IFD
+
 
 @dataclass
 class COGReader:
@@ -21,7 +24,7 @@ class COGReader:
     async def __aenter__(self):
         self._session_keep_alive = True
         if not self.session:
-            session_keep_alive = False
+            self._session_keep_alive = False
             self.session = aiohttp.ClientSession()
         bytes_reader = BytesReader(b"", self.filepath, self.session)
         bytes_reader.data = await bytes_reader.range_request(0, HEADER_OFFSET)
@@ -48,6 +51,8 @@ class COGReader:
         # Don't close session if it was instantiated outside the class
         if not self._session_keep_alive:
             await self.session.close()
+
+
 @dataclass
 class COGBigTiff(COGReader):
 
@@ -69,19 +74,6 @@ class COGTiff(COGReader):
 
 
     @property
-    def geotransform(self):
-        # xres, xtilt, tlx, yres, ytilt, tlx
-        ifd = self.ifds[0]
-        return affine.Affine(
-            ifd.ModelPixelScaleTag[0],
-            0.0,
-            ifd.ModelTiepointTag[3],
-            0.0,
-            -ifd.ModelPixelScaleTag[1],
-            ifd.ModelTiepointTag[4]
-        )
-
-    @property
     def epsg(self):
         ifd = self.ifds[0]
         for idx in range(0, len(ifd.GeoKeyDirectoryTag), 4):
@@ -90,11 +82,18 @@ class COGTiff(COGReader):
             if ifd.GeoKeyDirectoryTag[idx] in (2048, 3072):
                 return ifd.GeoKeyDirectoryTag[idx+3]
 
+    @property
+    def bounds(self):
+        gt = self.geotransform()
+        tlx = gt.c
+        tly = gt.f
+        brx = tlx + (gt.a * self.ifds[0].ImageWidth.value)
+        bry = tly + (gt.e * self.ifds[0].ImageHeight.value)
+        return (tlx, bry, brx, tly)
 
     @property
     def overviews(self):
         return [2 ** (ifd+1) for ifd in range(len(self.ifds)-1)]
-
 
     async def read_header(self):
         next_ifd_offset = 1
@@ -104,41 +103,54 @@ class COGTiff(COGReader):
             self._bytes_reader.seek(next_ifd_offset)
             self.ifds.append(ifd)
 
-    def _get_overview_level(self, width, height):
+    def geotransform(self, ovr_level: int = 0):
+        # Calculate overview for source image
+        gt = affine.Affine(
+            self.ifds[0].ModelPixelScaleTag[0],
+            0.0,
+            self.ifds[0].ModelTiepointTag[3],
+            0.0,
+            -self.ifds[0].ModelPixelScaleTag[1],
+            self.ifds[0].ModelTiepointTag[4]
+        )
+        # Decimate the geotransform if an overview is requested
+        if ovr_level > 0:
+            bounds = self.bounds
+            ifd = self.ifds[ovr_level]
+            gt = affine.Affine.translation(bounds[0], bounds[3]) * affine.Affine.scale(
+                (bounds[2] - bounds[0]) / ifd.ImageWidth.value, (bounds[1] - bounds[3]) / ifd.ImageHeight.value
+            )
+        return gt
+
+    def _get_overview_level(self, bounds, width, height):
         """
         https://github.com/cogeotiff/rio-tiler/blob/v2/rio_tiler/utils.py#L79-L135
         """
-        native_bounds = array_bounds(self.ifds[0].ImageHeight.value, self.ifds[0].ImageWidth.value, self.geotransform)
-
-        proj_transform, _, _ = calculate_default_transform(
-            CRS.from_epsg(self.epsg),
-            CRS.from_epsg(WEB_MERCATOR_EPSG),
-            self.ifds[0].ImageWidth.value,
-            self.ifds[0].ImageHeight.value,
-            *native_bounds
+        src_res = self.geotransform().a
+        target_gt = affine.Affine.translation(bounds[0], bounds[3]) * affine.Affine.scale(
+            (bounds[2] - bounds[0]) / width, (bounds[1] - bounds[3]) / height
         )
-        native_res = proj_transform.a
+        target_res = target_gt.a
 
-        dst_transform = from_bounds(*native_bounds, width, height)
-        target_res = dst_transform.a
-
-        ovr_idx = -1
-        if target_res > native_res:
-            res = [native_res * decim for decim in self.overviews]
-
-            for ovr_idx in range(ovr_idx, len(res) - 1):
-                ovrRes = native_res if ovr_idx < 0 else res[ovr_idx]
-                nextRes = res[ovr_idx + 1]
-                if (ovrRes < target_res) and (nextRes > target_res):
+        ovr_level = 0
+        if target_res > src_res:
+            # Decimated resolution at each overview
+            overviews = [src_res * decim for decim in self.overviews]
+            for ovr_level in range(ovr_level, len(overviews) - 1):
+                ovr_res = src_res if ovr_level == 0 else overviews[ovr_level]
+                if (ovr_res < target_res) and (overviews[ovr_level+1] > target_res):
                     break
-                if abs(ovrRes - target_res) < 1e-1:
+                if abs(ovr_res - target_res) < 1e-1:
                     break
             else:
-                ovr_idx = len(res) - 1
-        return ovr_idx
+                ovr_level = len(overviews) - 1
 
-    # https://github.com/mapbox/COGDumper/blob/master/cogdumper/cog_tiles.py#L337-L365
+        return ovr_level
+
     async def get_tile(self, x: int, y: int, z: int) -> bytes:
+        """
+        https://github.com/mapbox/COGDumper/blob/master/cogdumper/cog_tiles.py#L337-L365
+        """
         if z > len(self.ifds):
             raise TileNotFoundError(f"Overview {z} does not exist.")
         ifd = self.ifds[z]
@@ -150,6 +162,69 @@ class COGTiff(COGReader):
         tile = await self._bytes_reader.range_request(offset, byte_count)
         decoded = Compressions(ifd, self._bytes_reader, tile).decompress()
         return decoded
+
+    def _calculate_image_tiles(self, bounds, ovr_level):
+        geotransform = self.geotransform(ovr_level)
+        invgt = ~geotransform
+        tile_width = self.ifds[ovr_level].TileWidth.value
+        tile_height = self.ifds[ovr_level].TileHeight.value
+
+        # Project request bounds to pixel coordinates relative to geotransform of the overview
+        tlx, tly = invgt * (bounds[0], bounds[3])
+        brx, bry = invgt * (bounds[2], bounds[1])
+
+        # Calculate tiles
+        xmin = math.floor(tlx / tile_width)
+        xmax = math.floor(brx / tile_width)
+        ymax = math.floor(bry / tile_height)
+        ymin = math.floor(tly / tile_height)
+
+        tile_bounds = (xmin * tile_width, ymin * tile_height, (xmax+1) * tile_width, (ymax+1) * tile_height)
+
+        return {
+            'tile_ranges': (xmin, ymin, xmax, ymax),
+            'tile_bounds': tile_bounds,
+            'request_bounds': (tlx, bry, brx, tly),
+            'xtransform': (tlx - tile_bounds[0]) / float(tile_bounds[2] - tile_bounds[0]),
+            'ytransform': (bry - tile_bounds[1]) / float(tile_bounds[3] - tile_bounds[1])
+        }
+
+
+    @staticmethod
+    def stitch_image_tile(fut, fused_arr, idx, idy, tile_width, tile_height):
+        img_arr = fut.result()
+        fused_arr[idy * tile_height:(idy + 1) * tile_height, idx * tile_width:(idx + 1) * tile_width, :] = img_arr
+
+    async def read(self, bounds, shape):
+        # Determine which tiles intersect the request bounds
+        ovr_level = self._get_overview_level(bounds, shape[1], shape[0])
+        ifd = self.ifds[ovr_level]
+        tile_height = ifd.TileHeight.value
+        tile_width = ifd.TileWidth.value
+        img_tiles = self._calculate_image_tiles(bounds, ovr_level)
+        xmin, ymin, xmax, ymax = img_tiles['tile_ranges']
+
+        # Request those tiles
+        tile_tasks = []
+        fused = np.zeros(((ymax+1-ymin)*tile_height, (xmax+1-xmin)*tile_width, 3)).astype('uint8')
+        for idx, xtile in enumerate(range(xmin, xmax+1)):
+            for idy, ytile in enumerate(range(ymin, ymax+1)):
+                get_tile_task = asyncio.create_task(self.get_tile(xtile, ytile, ovr_level))
+                get_tile_task.add_done_callback(partial(self.stitch_image_tile, fused_arr=fused, idx=idx, idy=idy, tile_width=tile_width, tile_height=tile_height))
+                tile_tasks.append(get_tile_task)
+        await asyncio.gather(*tile_tasks)
+
+        # Clip the requested tiles to the extent of the request bounds
+        request_height = math.floor(img_tiles['request_bounds'][1]-img_tiles['request_bounds'][3])
+        request_width = math.floor(img_tiles['request_bounds'][2]-img_tiles['request_bounds'][0])
+        yorigin = fused.shape[0] - int(round(fused.shape[0] * img_tiles['ytransform']))
+        xorigin = int(round(fused.shape[1] * img_tiles['xtransform']))
+        clipped = fused[yorigin:yorigin+request_height, xorigin:xorigin+request_width,:]
+
+        # Resample to match the requested shape
+        resized = resize(clipped, output_shape=shape, preserve_range=True, anti_aliasing=True).astype('uint8')
+
+        return resized
 
 
     async def __aenter__(self):

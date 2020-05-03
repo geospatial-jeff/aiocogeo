@@ -22,7 +22,7 @@ async def test_cog_metadata(infile, create_cog_reader):
             profile = ds.profile
             assert profile['width'] == first_ifd.ImageWidth.value
             assert profile['height'] == first_ifd.ImageHeight.value
-            assert profile['transform'] == cog.geotransform
+            assert profile['transform'] == cog.geotransform()
             assert profile['blockxsize'] == first_ifd.TileWidth.value
             assert profile['blockysize'] == first_ifd.TileHeight.value
             assert profile['compress'] == COMPRESSIONS[first_ifd.Compression.value]
@@ -77,7 +77,7 @@ async def test_cog_read_tile(infile, create_cog_reader):
 @pytest.mark.parametrize("width,height",[(500,500),(1000,1000),(5000,5000),(10000,10000)])
 async def test_cog_get_overview_level(create_cog_reader, width, height):
     async with create_cog_reader(TEST_DATA[0]) as cog:
-        ovr = cog._get_overview_level(width, height)
+        ovr = cog._get_overview_level(cog.bounds, width, height)
 
         with rasterio.open(TEST_DATA[0]) as src:
             expected_ovr = rio_tiler_utils.get_overview_level(
@@ -86,6 +86,8 @@ async def test_cog_get_overview_level(create_cog_reader, width, height):
                 height,
                 width
             )
+            # Our index for source data is 0 while rio tiler uses -1
+            expected_ovr = 0 if expected_ovr == -1 else expected_ovr
             assert ovr == expected_ovr
 
 
