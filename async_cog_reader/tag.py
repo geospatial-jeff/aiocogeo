@@ -1,10 +1,15 @@
 from dataclasses import dataclass
+import logging
 import struct
-import warnings
 
 from typing import Any, Tuple
 
 from .constants import TIFF_TAGS, HEADER_OFFSET
+
+# TODO: Move this somewhere more sensible
+logging.basicConfig()
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 @dataclass
 class TagType:
@@ -48,7 +53,7 @@ class Tag:
         # 0-2 bytes of tag are tag name
         code = await reader.read(2, cast_to_int=True)
         if code not in TIFF_TAGS:
-            warnings.warn(f"TIFF TAG {code} is not supported.")
+            logger.warning(f"TIFF TAG {code} is not supported.")
             reader.incr(10)
             return None
         name = TIFF_TAGS[code]
