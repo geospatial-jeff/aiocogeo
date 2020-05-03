@@ -20,7 +20,7 @@ setup(
     ],
     tests_require=[
         "pytest",
-        "pytest-asyncio",
+        "pytest-asyncio<0.11.0",
         "pytest-cov",
         "rasterio",
         "rio-tiler==2.0a4"
