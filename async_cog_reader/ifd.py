@@ -2,6 +2,9 @@ from dataclasses import dataclass
 import math
 from typing import Dict
 
+import numpy as np
+
+from .constants import SAMPLE_DTYPES
 from .counter import BytesReader
 from .tag import Tag
 
@@ -11,6 +14,10 @@ class IFD:
     next_ifd_offset: int
     tag_count: int
     tags: Dict[str, Tag] # Store tags as dict where key is tag name for easier access
+
+    @property
+    def dtype(self):
+        return np.dtype(SAMPLE_DTYPES[(self.SampleFormat.value[0], self.BitsPerSample.value[0])])
 
     @property
     def tile_count(self):

@@ -16,10 +16,6 @@ class Compressions:
     tile: bytes
 
 
-    @property
-    def dtype(self):
-        return np.dtype(SAMPLE_DTYPES[(self.ifd.SampleFormat.value[0], self.ifd.BitsPerSample.value[0])])
-
     def decompress(self):
         compression = COMPRESSIONS[self.ifd.Compression.value]
         try:
@@ -46,7 +42,7 @@ class Compressions:
 
     def _lzw(self):
         decoded = imagecodecs.lzw_decode(self.tile)
-        decoded = np.frombuffer(decoded, self.dtype).reshape(self.ifd.TileHeight.value, self.ifd.TileWidth.value, self.ifd.SamplesPerPixel.value)
+        decoded = np.frombuffer(decoded, self.ifd.dtype).reshape(self.ifd.TileHeight.value, self.ifd.TileWidth.value, self.ifd.SamplesPerPixel.value)
         # Unpredict if there is horizontal differencing
         if self.ifd.Predictor.value == 2:
             imagecodecs.delta_decode(decoded, out=decoded, axis=-1)

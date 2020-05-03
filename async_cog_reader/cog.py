@@ -206,7 +206,7 @@ class COGTiff(COGReader):
 
         # Request those tiles
         tile_tasks = []
-        fused = np.zeros(((ymax+1-ymin)*tile_height, (xmax+1-xmin)*tile_width, 3)).astype('uint8')
+        fused = np.zeros(((ymax+1-ymin)*tile_height, (xmax+1-xmin)*tile_width, 3)).astype(ifd.dtype)
         for idx, xtile in enumerate(range(xmin, xmax+1)):
             for idy, ytile in enumerate(range(ymin, ymax+1)):
                 get_tile_task = asyncio.create_task(self.get_tile(xtile, ytile, ovr_level))
@@ -222,7 +222,7 @@ class COGTiff(COGReader):
         clipped = fused[yorigin:yorigin+request_height, xorigin:xorigin+request_width,:]
 
         # Resample to match the requested shape
-        resized = resize(clipped, output_shape=shape, preserve_range=True, anti_aliasing=True).astype('uint8')
+        resized = resize(clipped, output_shape=shape, preserve_range=True, anti_aliasing=True).astype(ifd.dtype)
 
         return resized
 
