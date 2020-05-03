@@ -4,7 +4,7 @@ import struct
 import imagecodecs
 import numpy as np
 
-from .constants import COMPRESSIONS, SAMPLE_DTYPES
+from .constants import COMPRESSIONS
 from .counter import BytesReader
 from .ifd import IFD
 
