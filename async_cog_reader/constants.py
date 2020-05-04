@@ -18,6 +18,20 @@ INTERLEAVE = {
     2: "band"
 }
 
+# https://www.awaresystems.be/imaging/tiff/tifftags/photometricinterpretation.html
+PHOTOMETRIC = {
+    0: "miniswhite",
+    1: "minisblack",
+    2: "rgb",
+    3: "palette",
+    4: "mask",
+    5: "separated",
+    6: "ycbcr",
+    8: "cielab",
+    9: "icclab",
+    10: "itulab"
+}
+
 # https://github.com/cgohlke/tifffile/blob/master/tifffile/tifffile.py#L7901-L7986
 # Map SampleFormat and BitsPerSample tags to numpy dtype
 SAMPLE_DTYPES = {
