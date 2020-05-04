@@ -28,7 +28,7 @@ class COGReader:
             self.session = aiohttp.ClientSession()
         bytes_reader = BytesReader(b"", self.filepath, self.session)
         bytes_reader.data = await bytes_reader.range_request(0, HEADER_OFFSET)
-        if (await bytes_reader.read(2)) == b'MM':
+        if (await bytes_reader.read(2)) == b"MM":
             bytes_reader._endian = ">"
         version = await bytes_reader.read(2, cast_to_int=True)
         if version == 42:
@@ -38,7 +38,7 @@ class COGReader:
                 filepath=self.filepath,
                 session=self.session,
                 _bytes_reader=bytes_reader,
-                _session_keep_alive=self._session_keep_alive
+                _session_keep_alive=self._session_keep_alive,
             ) as cog:
                 return cog
         elif version == 43:
@@ -55,12 +55,12 @@ class COGReader:
 
 @dataclass
 class COGBigTiff(COGReader):
-
     async def __aenter__(self):
         ...
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         ...
+
 
 @dataclass
 class COGTiff(COGReader):
@@ -71,7 +71,6 @@ class COGTiff(COGReader):
     _big_tiff: Optional[bool] = False
 
     _session_keep_alive: Optional[bool] = True
-
 
     @property
     def profile(self):
@@ -89,7 +88,7 @@ class COGTiff(COGReader):
             "interleave": INTERLEAVE[self.ifds[0].PlanarConfiguration.value],
             "crs": f"EPSG:{self.epsg}",
             "tiled": True,
-            "photometric": PHOTOMETRIC[self.ifds[0].PhotometricInterpretation.value]
+            "photometric": PHOTOMETRIC[self.ifds[0].PhotometricInterpretation.value],
         }
 
     @property
@@ -99,7 +98,7 @@ class COGTiff(COGReader):
             # 2048 is geographic crs
             # 3072 is projected crs
             if ifd.GeoKeyDirectoryTag[idx] in (2048, 3072):
-                return ifd.GeoKeyDirectoryTag[idx+3]
+                return ifd.GeoKeyDirectoryTag[idx + 3]
 
     @property
     def bounds(self):
@@ -112,7 +111,7 @@ class COGTiff(COGReader):
 
     @property
     def overviews(self):
-        return [2 ** (ifd+1) for ifd in range(len(self.ifds)-1)]
+        return [2 ** (ifd + 1) for ifd in range(len(self.ifds) - 1)]
 
     async def read_header(self):
         next_ifd_offset = 1
@@ -130,14 +129,15 @@ class COGTiff(COGReader):
             self.ifds[0].ModelTiepointTag[3],
             0.0,
             -self.ifds[0].ModelPixelScaleTag[1],
-            self.ifds[0].ModelTiepointTag[4]
+            self.ifds[0].ModelTiepointTag[4],
         )
         # Decimate the geotransform if an overview is requested
         if ovr_level > 0:
             bounds = self.bounds
             ifd = self.ifds[ovr_level]
             gt = affine.Affine.translation(bounds[0], bounds[3]) * affine.Affine.scale(
-                (bounds[2] - bounds[0]) / ifd.ImageWidth.value, (bounds[1] - bounds[3]) / ifd.ImageHeight.value
+                (bounds[2] - bounds[0]) / ifd.ImageWidth.value,
+                (bounds[1] - bounds[3]) / ifd.ImageHeight.value,
             )
         return gt
 
@@ -146,7 +146,9 @@ class COGTiff(COGReader):
         https://github.com/cogeotiff/rio-tiler/blob/v2/rio_tiler/utils.py#L79-L135
         """
         src_res = self.geotransform().a
-        target_gt = affine.Affine.translation(bounds[0], bounds[3]) * affine.Affine.scale(
+        target_gt = affine.Affine.translation(
+            bounds[0], bounds[3]
+        ) * affine.Affine.scale(
             (bounds[2] - bounds[0]) / width, (bounds[1] - bounds[3]) / height
         )
         target_res = target_gt.a
@@ -157,7 +159,7 @@ class COGTiff(COGReader):
             overviews = [src_res * decim for decim in self.overviews]
             for ovr_level in range(ovr_level, len(overviews) - 1):
                 ovr_res = src_res if ovr_level == 0 else overviews[ovr_level]
-                if (ovr_res < target_res) and (overviews[ovr_level+1] > target_res):
+                if (ovr_res < target_res) and (overviews[ovr_level + 1] > target_res):
                     break
                 if abs(ovr_res - target_res) < 1e-1:
                     break
@@ -198,21 +200,29 @@ class COGTiff(COGReader):
         ymax = math.floor(bry / tile_height)
         ymin = math.floor(tly / tile_height)
 
-        tile_bounds = (xmin * tile_width, ymin * tile_height, (xmax+1) * tile_width, (ymax+1) * tile_height)
+        tile_bounds = (
+            xmin * tile_width,
+            ymin * tile_height,
+            (xmax + 1) * tile_width,
+            (ymax + 1) * tile_height,
+        )
 
         return {
-            'tile_ranges': (xmin, ymin, xmax, ymax),
-            'tile_bounds': tile_bounds,
-            'request_bounds': (tlx, bry, brx, tly),
-            'xtransform': (tlx - tile_bounds[0]) / float(tile_bounds[2] - tile_bounds[0]),
-            'ytransform': (bry - tile_bounds[1]) / float(tile_bounds[3] - tile_bounds[1])
+            "tile_ranges": (xmin, ymin, xmax, ymax),
+            "tile_bounds": tile_bounds,
+            "request_bounds": (tlx, bry, brx, tly),
+            "xtransform": (tlx - tile_bounds[0]) / float(tile_bounds[2] - tile_bounds[0]),
+            "ytransform": (bry - tile_bounds[1]) / float(tile_bounds[3] - tile_bounds[1]),
         }
-
 
     @staticmethod
     def stitch_image_tile(fut, fused_arr, idx, idy, tile_width, tile_height):
         img_arr = fut.result()
-        fused_arr[idy * tile_height:(idy + 1) * tile_height, idx * tile_width:(idx + 1) * tile_width, :] = img_arr
+        fused_arr[
+            idy * tile_height : (idy + 1) * tile_height,
+            idx * tile_width : (idx + 1) * tile_width,
+            :,
+        ] = img_arr
 
     async def read(self, bounds, shape):
         # Determine which tiles intersect the request bounds
@@ -221,30 +231,54 @@ class COGTiff(COGReader):
         tile_height = ifd.TileHeight.value
         tile_width = ifd.TileWidth.value
         img_tiles = self._calculate_image_tiles(bounds, ovr_level)
-        xmin, ymin, xmax, ymax = img_tiles['tile_ranges']
+        xmin, ymin, xmax, ymax = img_tiles["tile_ranges"]
 
         # Request those tiles
         tile_tasks = []
-        fused = np.zeros(((ymax+1-ymin)*tile_height, (xmax+1-xmin)*tile_width, ifd.SamplesPerPixel.value)).astype(ifd.dtype)
-        for idx, xtile in enumerate(range(xmin, xmax+1)):
-            for idy, ytile in enumerate(range(ymin, ymax+1)):
-                get_tile_task = asyncio.create_task(self.get_tile(xtile, ytile, ovr_level))
-                get_tile_task.add_done_callback(partial(self.stitch_image_tile, fused_arr=fused, idx=idx, idy=idy, tile_width=tile_width, tile_height=tile_height))
+        fused = np.zeros(
+            (
+                (ymax + 1 - ymin) * tile_height,
+                (xmax + 1 - xmin) * tile_width,
+                ifd.SamplesPerPixel.value,
+            )
+        ).astype(ifd.dtype)
+        for idx, xtile in enumerate(range(xmin, xmax + 1)):
+            for idy, ytile in enumerate(range(ymin, ymax + 1)):
+                get_tile_task = asyncio.create_task(
+                    self.get_tile(xtile, ytile, ovr_level)
+                )
+                get_tile_task.add_done_callback(
+                    partial(
+                        self.stitch_image_tile,
+                        fused_arr=fused,
+                        idx=idx,
+                        idy=idy,
+                        tile_width=tile_width,
+                        tile_height=tile_height,
+                    )
+                )
                 tile_tasks.append(get_tile_task)
         await asyncio.gather(*tile_tasks)
 
         # Clip the requested tiles to the extent of the request bounds
-        request_height = math.floor(img_tiles['request_bounds'][1]-img_tiles['request_bounds'][3])
-        request_width = math.floor(img_tiles['request_bounds'][2]-img_tiles['request_bounds'][0])
-        yorigin = fused.shape[0] - int(round(fused.shape[0] * img_tiles['ytransform']))
-        xorigin = int(round(fused.shape[1] * img_tiles['xtransform']))
-        clipped = fused[yorigin:yorigin+request_height, xorigin:xorigin+request_width,:]
+        request_height = math.floor(
+            img_tiles["request_bounds"][1] - img_tiles["request_bounds"][3]
+        )
+        request_width = math.floor(
+            img_tiles["request_bounds"][2] - img_tiles["request_bounds"][0]
+        )
+        yorigin = fused.shape[0] - int(round(fused.shape[0] * img_tiles["ytransform"]))
+        xorigin = int(round(fused.shape[1] * img_tiles["xtransform"]))
+        clipped = fused[
+            yorigin : yorigin + request_height, xorigin : xorigin + request_width, :
+        ]
 
         # Resample to match the requested shape
-        resized = resize(clipped, output_shape=shape, preserve_range=True, anti_aliasing=True).astype(ifd.dtype)
+        resized = resize(
+            clipped, output_shape=shape, preserve_range=True, anti_aliasing=True
+        ).astype(ifd.dtype)
 
         return resized
-
 
     async def __aenter__(self):
         await self.read_header()
@@ -256,5 +290,3 @@ class COGTiff(COGReader):
     def __iter__(self):
         for ifd in self.ifds:
             yield ifd
-
-

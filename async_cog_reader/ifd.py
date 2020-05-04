@@ -37,17 +37,19 @@ class IFD:
 
     @property
     def dtype(self):
-        return np.dtype(SAMPLE_DTYPES[(self.SampleFormat.value[0], self.BitsPerSample.value[0])])
+        return np.dtype(
+            SAMPLE_DTYPES[(self.SampleFormat.value[0], self.BitsPerSample.value[0])]
+        )
 
     @property
     def tile_count(self):
         return (
             math.ceil(self.ImageWidth.value / float(self.TileWidth.value)),
-            math.ceil(self.ImageHeight.value / float(self.TileHeight.value))
+            math.ceil(self.ImageHeight.value / float(self.TileHeight.value)),
         )
 
     def __iter__(self):
-        for (k,v) in self.__dict__.items():
+        for (k, v) in self.__dict__.items():
             if k not in ("next_ifd_offset", "tag_count") and v:
                 yield v
 

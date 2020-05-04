@@ -3,27 +3,28 @@ from dataclasses import dataclass
 import aiohttp
 from .constants import HEADER_OFFSET
 
+
 @dataclass
 class BytesReader:
     """
     Duck-typed file-like object.
     """
+
     data: bytes
     filepath: str
     session: aiohttp.ClientSession
 
     # Counter to keep track of our current offset within `data`
     _offset: int = 0
-    _endian: str = '<'
+    _endian: str = "<"
     _total_bytes_requested = 0
     _total_requests = 0
-
 
     async def range_request(self, start, offset):
         range_header = {"Range": f"bytes={start}-{start + offset}"}
         async with self.session.get(self.filepath, headers=range_header) as cog:
             data = await cog.content.read()
-            self._total_bytes_requested += int(cog.headers['Content-Length'])
+            self._total_bytes_requested += int(cog.headers["Content-Length"])
             self._total_requests += 1
         return data
 
@@ -31,11 +32,11 @@ class BytesReader:
         """
         Read <offset> number of bytes past the current `self._offset` and increment `self._offset`.
         """
-        if self._offset+offset > len(self.data):
+        if self._offset + offset > len(self.data):
             self.data += await self.range_request(len(self.data), HEADER_OFFSET)
-        data = self.data[self._offset:self._offset+offset]
+        data = self.data[self._offset : self._offset + offset]
         self.incr(offset)
-        order = 'little' if self._endian == '<' else 'big'
+        order = "little" if self._endian == "<" else "big"
         return int.from_bytes(data, order) if cast_to_int else data
 
     def incr(self, offset):

@@ -11,24 +11,26 @@ logging.basicConfig()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.ERROR)
 
+
 @dataclass
 class TagType:
     """
     Represents the type of a TIFF tag.  Also responsible for reading the tag since this is dependent on the tag's type.
     """
+
     format: str
     size: int
 
 
 TAG_TYPES = {
-    1: TagType(format='B', size=1), # TIFFByte
-    2: TagType(format='c', size=1), # TIFFascii
-    3: TagType(format='H', size=2), # TIFFshort
-    4: TagType(format='L', size=4), # TIFFlong
-    5: TagType(format='f', size=4), # TIFFrational
-    7: TagType(format='B', size=1), # undefined
-    12: TagType(format='d', size=8), # TIFFdouble
-    16: TagType(format='Q', size=8), # TIFFlong8
+    1: TagType(format="B", size=1),  # TIFFByte
+    2: TagType(format="c", size=1),  # TIFFascii
+    3: TagType(format="H", size=2),  # TIFFshort
+    4: TagType(format="L", size=4),  # TIFFlong
+    5: TagType(format="f", size=4),  # TIFFrational
+    7: TagType(format="B", size=1),  # undefined
+    12: TagType(format="d", size=8),  # TIFFdouble
+    16: TagType(format="Q", size=8),  # TIFFlong8
 }
 
 
@@ -47,7 +49,6 @@ class Tag:
     def __len__(self):
         return self.count
 
-
     @classmethod
     async def read(cls, reader):
         # 0-2 bytes of tag are tag name
@@ -63,7 +64,10 @@ class Tag:
         count = await reader.read(4, cast_to_int=True)
         length = field_type.size * count
         if length <= 4:
-            value = struct.unpack(f"{reader._endian}{count}{field_type.format}", (await reader.read(length)))
+            value = struct.unpack(
+                f"{reader._endian}{count}{field_type.format}",
+                (await reader.read(length)),
+            )
             reader.incr(4 - length)
         else:
             value_offset = await reader.read(4, cast_to_int=True)
@@ -82,6 +86,6 @@ class Tag:
             tag_type=field_type,
             count=count,
             length=length,
-            value=value
+            value=value,
         )
         return tag
