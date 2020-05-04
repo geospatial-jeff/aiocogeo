@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import logging
 import struct
 
-from typing import Any, Tuple
+from typing import Any, Tuple, Union
 
 from .constants import TIFF_TAGS, HEADER_OFFSET
 
@@ -39,7 +39,7 @@ class Tag:
     tag_type: TagType
     count: int
     length: int
-    value: Tuple[Any]
+    value: Union[Any, Tuple[Any]]
 
     def __getitem__(self, key):
         return self.value[key]

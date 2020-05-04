@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import math
-from typing import Dict
+from typing import Dict, Optional
 
 import numpy as np
 
@@ -13,7 +13,27 @@ from .tag import Tag
 class IFD:
     next_ifd_offset: int
     tag_count: int
-    tags: Dict[str, Tag] # Store tags as dict where key is tag name for easier access
+
+    # Required tiff tags
+    BitsPerSample: Tag
+    Compression: Tag
+    ImageHeight: Tag
+    ImageWidth: Tag
+    PhotometricInterpretation: Tag
+    PlanarConfiguration: Tag
+    SampleFormat: Tag
+    SamplesPerPixel: Tag
+    TileByteCounts: Tag
+    TileHeight: Tag
+    TileOffsets: Tag
+    TileWidth: Tag
+
+    Predictor: Optional[Tag] = None
+    JPEGTables: Optional[Tag] = None
+
+    GeoKeyDirectoryTag: Optional[Tag] = None
+    ModelPixelScaleTag: Optional[Tag] = None
+    ModelTiepointTag: Optional[Tag] = None
 
     @property
     def dtype(self):
@@ -26,12 +46,10 @@ class IFD:
             math.ceil(self.ImageHeight.value / float(self.TileHeight.value))
         )
 
-    def __getattr__(self, item):
-        return self.tags[item]
-
     def __iter__(self):
-        for (_, tag) in self.tags.items():
-            yield tag
+        for (k,v) in self.__dict__.items():
+            if k not in ("next_ifd_offset", "tag_count") and v:
+                yield v
 
     @classmethod
     async def read(cls, reader: BytesReader) -> "IFD":
@@ -45,4 +63,4 @@ class IFD:
                 tiff_tags[tag.name] = tag
         reader.seek(ifd_start + (12 * tag_count) + 2)
         next_ifd_offset = await reader.read(4, cast_to_int=True)
-        return cls(next_ifd_offset, tag_count, tiff_tags)
+        return cls(next_ifd_offset, tag_count, **tiff_tags)
