@@ -9,7 +9,7 @@ from .constants import TIFF_TAGS, HEADER_OFFSET
 # TODO: Move this somewhere more sensible
 logging.basicConfig()
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.ERROR)
 
 @dataclass
 class TagType:
