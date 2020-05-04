@@ -9,7 +9,7 @@ import affine
 import numpy as np
 from skimage.transform import resize
 
-from .constants import HEADER_OFFSET
+from .constants import COMPRESSIONS, HEADER_OFFSET, INTERLEAVE, PHOTOMETRIC
 from .compression import Compressions
 from .counter import BytesReader
 from .errors import InvalidTiffError, TileNotFoundError
@@ -72,6 +72,25 @@ class COGTiff(COGReader):
 
     _session_keep_alive: Optional[bool] = True
 
+
+    @property
+    def profile(self):
+        # TODO: Support nodata value
+        return {
+            "driver": "GTiff",
+            "width": self.ifds[0].ImageWidth.value,
+            "height": self.ifds[0].ImageHeight.value,
+            "count": self.ifds[0].SamplesPerPixel.value,
+            "dtype": str(self.ifds[0].dtype),
+            "transform": self.geotransform(),
+            "blockxsize": self.ifds[0].TileWidth.value,
+            "blockysize": self.ifds[0].TileHeight.value,
+            "compress": COMPRESSIONS[self.ifds[0].Compression.value],
+            "interleave": INTERLEAVE[self.ifds[0].PlanarConfiguration.value],
+            "crs": f"EPSG:{self.epsg}",
+            "tiled": True,
+            "photometric": PHOTOMETRIC[self.ifds[0].PhotometricInterpretation.value]
+        }
 
     @property
     def epsg(self):

@@ -7,7 +7,6 @@ from rio_tiler import utils as rio_tiler_utils
 
 from async_cog_reader.ifd import IFD
 from async_cog_reader.tag import Tag
-from async_cog_reader.constants import COMPRESSIONS, INTERLEAVE
 from async_cog_reader.errors import InvalidTiffError
 
 from .conftest import TEST_DATA
@@ -16,18 +15,19 @@ from .conftest import TEST_DATA
 @pytest.mark.parametrize("infile", TEST_DATA)
 async def test_cog_metadata(infile, create_cog_reader):
     async with create_cog_reader(infile) as cog:
-        first_ifd = cog.ifds[0]
-
         with rasterio.open(infile) as ds:
-            profile = ds.profile
-            assert profile['width'] == first_ifd.ImageWidth.value
-            assert profile['height'] == first_ifd.ImageHeight.value
-            assert profile['transform'] == cog.geotransform()
-            assert profile['blockxsize'] == first_ifd.TileWidth.value
-            assert profile['blockysize'] == first_ifd.TileHeight.value
-            assert profile['compress'] == COMPRESSIONS[first_ifd.Compression.value]
-            assert profile['interleave'] == INTERLEAVE[first_ifd.PlanarConfiguration.value]
-            assert profile['crs'].to_epsg() == cog.epsg
+            rio_profile = ds.profile
+            cog_profile = cog.profile
+
+            # Don't compare nodata, its not supported yet
+            cog_profile.pop('nodata', None)
+            rio_profile.pop('nodata', None)
+
+            # Don't compare photometric, rasterio seems to not always report color interp
+            cog_profile.pop('photometric', None)
+            rio_profile.pop('photometric', None)
+
+            assert rio_profile == cog_profile
             assert ds.overviews(1) == cog.overviews
 
 
