@@ -5,6 +5,7 @@ import math
 from typing import List, Optional
 
 import aiohttp
+from aiocache import cached, Cache
 import affine
 import numpy as np
 from skimage.transform import resize
@@ -60,6 +61,7 @@ class COGBigTiff(COGReader):
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         ...
+
 
 
 @dataclass
@@ -168,6 +170,12 @@ class COGTiff(COGReader):
 
         return ovr_level
 
+
+    @cached(
+        cache=Cache.MEMORY,
+        # Cache key comes from filepath and x/y/z coordinates of image tile
+        key_builder=lambda fn,*args,**kwargs: f"{args[0].filepath}-{args[1]}-{args[2]}-{args[3]}"
+    )
     async def get_tile(self, x: int, y: int, z: int) -> bytes:
         """
         https://github.com/mapbox/COGDumper/blob/master/cogdumper/cog_tiles.py#L337-L365
