@@ -23,6 +23,18 @@ class Compressions:
                 f"{self.ifd.compression} is not currently supported"
             ) from e
 
+    def _reshape(self, arr):
+        return arr.reshape(
+            self.ifd.TileHeight.value,
+            self.ifd.TileWidth.value,
+            self.ifd.bands
+        )
+
+    def _unpredict(self, arr):
+        # Unpredict if there is horizontal differencing
+        if self.ifd.Predictor.value == 2:
+            imagecodecs.delta_decode(arr, out=arr, axis=-1)
+
     def _jpeg(self):
         jpeg_tables = self.ifd.JPEGTables
         jpeg_table_bytes = struct.pack(
@@ -40,17 +52,15 @@ class Compressions:
         return decoded
 
     def _lzw(self):
-        decoded = imagecodecs.lzw_decode(self.tile)
-        decoded = np.frombuffer(decoded, self.ifd.dtype).reshape(
-            self.ifd.TileHeight.value,
-            self.ifd.TileWidth.value,
-            self.ifd.bands,
-        )
-        # Unpredict if there is horizontal differencing
-        if self.ifd.Predictor.value == 2:
-            imagecodecs.delta_decode(decoded, out=decoded, axis=-1)
+        decoded = self._reshape(np.frombuffer(imagecodecs.lzw_decode(self.tile), self.ifd.dtype))
+        self._unpredict(decoded)
         return decoded
 
     def _webp(self):
         decoded = imagecodecs.webp_decode(self.tile)
+        return decoded
+
+    def _deflate(self):
+        decoded = self._reshape(np.frombuffer(imagecodecs.zlib_decode(self.tile)))
+        self._unpredict(decoded)
         return decoded
