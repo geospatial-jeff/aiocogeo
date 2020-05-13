@@ -45,7 +45,7 @@ class Compressions:
         decoded = np.frombuffer(decoded, self.ifd.dtype).reshape(
             self.ifd.TileHeight.value,
             self.ifd.TileWidth.value,
-            self.ifd.SamplesPerPixel.value,
+            self.ifd.bands,
         )
         # Unpredict if there is horizontal differencing
         if self.ifd.Predictor.value == 2:

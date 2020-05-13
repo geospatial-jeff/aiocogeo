@@ -4,7 +4,7 @@ from typing import Dict, Optional
 
 import numpy as np
 
-from .constants import SAMPLE_DTYPES
+from .constants import INTERLEAVE, SAMPLE_DTYPES
 from .counter import BytesReader
 from .tag import Tag
 
@@ -28,6 +28,7 @@ class IFD:
     TileOffsets: Tag
     TileWidth: Tag
 
+    NewSubfileType: Optional[Tag] = None
     Predictor: Optional[Tag] = None
     JPEGTables: Optional[Tag] = None
 
@@ -36,10 +37,23 @@ class IFD:
     ModelTiepointTag: Optional[Tag] = None
 
     @property
+    def bands(self):
+        return self.SamplesPerPixel.value
+
+    @property
     def dtype(self):
-        return np.dtype(
-            SAMPLE_DTYPES[(self.SampleFormat.value[0], self.BitsPerSample.value[0])]
-        )
+        if self.bands == 1:
+            return np.dtype(
+                SAMPLE_DTYPES[(self.SampleFormat.value, self.BitsPerSample.value)]
+            )
+        else:
+            return np.dtype(
+                SAMPLE_DTYPES[(self.SampleFormat.value[0], self.BitsPerSample.value[0])]
+            )
+
+    @property
+    def interleave(self):
+        return "band" if self.bands == 1 else INTERLEAVE[self.PlanarConfiguration.value]
 
     @property
     def tile_count(self):
