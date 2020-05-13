@@ -86,7 +86,7 @@ class COGTiff(COGReader):
             "transform": self.geotransform(),
             "blockxsize": self.ifds[0].TileWidth.value,
             "blockysize": self.ifds[0].TileHeight.value,
-            "compress": COMPRESSIONS[self.ifds[0].Compression.value],
+            "compress": self.ifds[0].compression,
             "interleave": self.ifds[0].interleave,
             "crs": f"EPSG:{self.epsg}",
             "tiled": True,

@@ -4,7 +4,7 @@ from typing import Dict, Optional
 
 import numpy as np
 
-from .constants import INTERLEAVE, SAMPLE_DTYPES
+from .constants import COMPRESSIONS, INTERLEAVE, SAMPLE_DTYPES
 from .counter import BytesReader
 from .tag import Tag
 
@@ -37,6 +37,10 @@ class IFD:
     ModelTiepointTag: Optional[Tag] = None
 
     @property
+    def compression(self):
+        return COMPRESSIONS[self.Compression.value]
+
+    @property
     def bands(self):
         return self.SamplesPerPixel.value
 
@@ -54,6 +58,32 @@ class IFD:
     @property
     def interleave(self):
         return "band" if self.bands == 1 else INTERLEAVE[self.PlanarConfiguration.value]
+
+    @property
+    def is_full_resolution(self):
+        # https://www.awaresystems.be/imaging/tiff/tifftags/newsubfiletype.html
+        # The image i'm using as a test case to add mask bands doesn't have a `NewSubfileType` on the first IFD although
+        # the spec reads like it should be on every IFD.  So we might not need this first if statement.
+        if not self.NewSubfileType:
+            return True
+        elif not self.NewSubfileType.value[0]:
+            return True
+        return False
+
+    @property
+    def is_reduced_resolution(self):
+        # https://www.awaresystems.be/imaging/tiff/tifftags/newsubfiletype.html
+        return False if not self.is_full_resolution else True
+
+    @property
+    def is_mask(self):
+        # https://www.awaresystems.be/imaging/tiff/tifftags/newsubfiletype.html
+        # https://gdal.org/drivers/raster/gtiff.html#internal-nodata-masks
+        if self.NewSubfileType:
+            if self.NewSubfileType.value[2] == 1 and self.PhotometricInterpretation.value == 4 and self.compression == "deflate":
+                return True
+        return False
+
 
     @property
     def tile_count(self):

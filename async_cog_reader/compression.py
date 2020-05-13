@@ -16,12 +16,11 @@ class Compressions:
     tile: bytes
 
     def decompress(self):
-        compression = COMPRESSIONS[self.ifd.Compression.value]
         try:
-            return getattr(self, f"_{compression}")()
+            return getattr(self, f"_{self.ifd.compression}")()
         except AttributeError as e:
             raise NotImplementedError(
-                f"{compression} is not currently supported"
+                f"{self.ifd.compression} is not currently supported"
             ) from e
 
     def _jpeg(self):
