@@ -11,7 +11,7 @@ setup(
     install_requires=[
         "aioboto3",
         "aiofiles",
-        "aiohttp",
+        "aiohttp<=3.6.2",
         "aiocache",
         "affine",
         "imagecodecs",

@@ -2,6 +2,7 @@ import abc
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
+import aioboto3
 import aiofiles
 import aiohttp
 
@@ -18,13 +19,19 @@ class Filesystem(abc.ABC):
         self._total_bytes_requested: int = 0
         self._total_requests: int = 0
 
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        ...
+
     @classmethod
-    def create_from_filepath(cls, filepath: str):
+    def create_from_filepath(cls, filepath: str) -> "Filesystem":
         splits = urlsplit(filepath)
         if splits.scheme in {"http", "https"}:
             return HttpFilesystem(filepath)
+        elif splits.scheme == "s3":
+            return S3Filesystem(filepath)
         elif (not splits.scheme and not splits.netloc):
             return LocalFilesystem(filepath)
+        raise Exception("Unsupported file system")
 
     @abc.abstractmethod
     async def range_request(self, start: int, offset: int) -> bytes:
@@ -70,8 +77,6 @@ class HttpFilesystem(Filesystem):
         self.session = aiohttp.ClientSession()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        ...
 
 @dataclass
 class LocalFilesystem(Filesystem):
@@ -87,5 +92,20 @@ class LocalFilesystem(Filesystem):
         self.file = await aiofiles.open(self.filepath, 'rb')
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        ...
+
+@dataclass
+class S3Filesystem(Filesystem):
+
+    async def range_request(self, start: int, offset: int) -> bytes:
+        req = await self.object.get(Range=f'bytes={start}-{start+offset}')
+        data = await req['Body'].read()
+        return data
+
+    async def close(self) -> None:
+        await self.resource.__aexit__('', '', '')
+
+    async def __aenter__(self):
+        splits = urlsplit(self.filepath)
+        self.resource = await aioboto3.resource('s3').__aenter__()
+        self.object = await self.resource.Object(splits.netloc, splits.path[1:])
+        return self
