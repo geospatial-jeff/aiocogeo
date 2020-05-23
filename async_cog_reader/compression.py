@@ -38,10 +38,9 @@ class Compression(metaclass=abc.ABCMeta):
         try:
             return getattr(self, f"_{self.compression}")(tile)
         except AttributeError as e:
-            raise
-            # raise NotImplementedError(
-            #     f"{self.compression} is not currently supported"
-            # ) from e
+            raise NotImplementedError(
+                f"{self.compression} is not currently supported"
+            ) from e
 
     def _reshape(self, arr):
         return arr.reshape(

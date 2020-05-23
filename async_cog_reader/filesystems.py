@@ -31,7 +31,7 @@ class Filesystem(abc.ABC):
             return S3Filesystem(filepath)
         elif (not splits.scheme and not splits.netloc):
             return LocalFilesystem(filepath)
-        raise Exception("Unsupported file system")
+        raise NotImplemented("Unsupported file system")
 
     @abc.abstractmethod
     async def range_request(self, start: int, offset: int) -> bytes:
@@ -83,6 +83,8 @@ class LocalFilesystem(Filesystem):
 
     async def range_request(self, start, offset):
         await self.file.seek(start)
+        self._total_bytes_requested += (offset - start)
+        self._total_requests += 1
         return await self.file.read(offset)
 
     async def close(self):
@@ -98,6 +100,8 @@ class S3Filesystem(Filesystem):
 
     async def range_request(self, start: int, offset: int) -> bytes:
         req = await self.object.get(Range=f'bytes={start}-{start+offset}')
+        self._total_bytes_requested += int(req['ResponseMetadata']['HTTPHeaders']['content-length'])
+        self._total_requests += 1
         data = await req['Body'].read()
         return data
 
