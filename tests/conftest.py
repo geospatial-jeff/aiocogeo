@@ -20,6 +20,6 @@ async def client_session():
 @pytest.fixture
 def create_cog_reader(client_session):
     def _create_reader(infile):
-        return COGReader(filepath=infile, session=client_session)
+        return COGReader(filepath=infile)
 
     return _create_reader

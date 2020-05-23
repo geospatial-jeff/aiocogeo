@@ -1,20 +1,21 @@
 from dataclasses import dataclass
 import math
-from typing import Dict, Optional
 
 import numpy as np
 
+from .compression import Compression
 from .constants import COMPRESSIONS, INTERLEAVE, SAMPLE_DTYPES
-from .counter import BytesReader
+from .filesystems import Filesystem
 from .tag import Tag
 
-
 @dataclass
-class IFD:
+class BaseIFD:
     next_ifd_offset: int
     tag_count: int
+    _file_reader: Filesystem
 
-    # Required tiff tags
+@dataclass
+class RequiredTags:
     BitsPerSample: Tag
     Compression: Tag
     ImageHeight: Tag
@@ -28,13 +29,18 @@ class IFD:
     TileOffsets: Tag
     TileWidth: Tag
 
-    NewSubfileType: Optional[Tag] = None
-    Predictor: Optional[Tag] = None
-    JPEGTables: Optional[Tag] = None
+@dataclass
+class OptionalTags:
+    NewSubfileType: Tag = None
+    Predictor: Tag = None
+    JPEGTables: Tag = None
 
-    GeoKeyDirectoryTag: Optional[Tag] = None
-    ModelPixelScaleTag: Optional[Tag] = None
-    ModelTiepointTag: Optional[Tag] = None
+    GeoKeyDirectoryTag: Tag = None
+    ModelPixelScaleTag: Tag = None
+    ModelTiepointTag: Tag = None
+
+@dataclass
+class IFD(OptionalTags, Compression, RequiredTags, BaseIFD):
 
     @property
     def compression(self):
@@ -94,19 +100,19 @@ class IFD:
 
     def __iter__(self):
         for (k, v) in self.__dict__.items():
-            if k not in ("next_ifd_offset", "tag_count") and v:
+            if k not in ("next_ifd_offset", "tag_count", "_file_reader") and v:
                 yield v
 
     @classmethod
-    async def read(cls, reader: BytesReader) -> "IFD":
-        ifd_start = reader.tell()
-        tag_count = await reader.read(2, cast_to_int=True)
+    async def read(cls, file_reader: Filesystem) -> "IFD":
+        ifd_start = file_reader.tell()
+        tag_count = await file_reader.read(2, cast_to_int=True)
         tiff_tags = {}
         # Read tags
         for idx in range(tag_count):
-            tag = await Tag.read(reader)
+            tag = await Tag.read(file_reader)
             if tag:
                 tiff_tags[tag.name] = tag
-        reader.seek(ifd_start + (12 * tag_count) + 2)
-        next_ifd_offset = await reader.read(4, cast_to_int=True)
-        return cls(next_ifd_offset, tag_count, **tiff_tags)
+        file_reader.seek(ifd_start + (12 * tag_count) + 2)
+        next_ifd_offset = await file_reader.read(4, cast_to_int=True)
+        return cls(next_ifd_offset, tag_count, file_reader, **tiff_tags)
