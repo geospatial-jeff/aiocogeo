@@ -97,6 +97,28 @@ async def test_cog_read_internal_tile(infile, create_cog_reader):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("infile", TEST_DATA[:-1])
+async def test_cog_calculate_image_tiles(infile, create_cog_reader):
+    async with create_cog_reader(infile) as cog:
+        ovr_level = 0
+        gt = cog.geotransform(ovr_level)
+
+        # Find bounds of top left tile at native res
+        bounds = (
+            gt.c,
+            gt.f + cog.ifds[0].TileHeight.value * gt.e,
+            gt.c + cog.ifds[0].TileWidth.value * gt.a,
+            gt.f
+        )
+
+        img_tile = cog._calculate_image_tiles(bounds, ovr_level)
+        assert img_tile['tlx'] == img_tile['tly'] == 0
+        assert img_tile['width'] == cog.ifds[0].TileWidth.value
+        assert img_tile['height'] == cog.ifds[0].TileHeight.value
+        assert img_tile['tile_ranges'] == (0, 0, 1, 1)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("infile", TEST_DATA[:-1])
 async def test_cog_read(infile, create_cog_reader):
     async with create_cog_reader(infile) as cog:
         zoom = math.floor(math.log2((2 * math.pi * 6378137 / 256) / cog.geotransform().a))
