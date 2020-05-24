@@ -9,7 +9,9 @@ setup(
     license="mit",
     python_requires=">=3.7",
     install_requires=[
-        "aiohttp",
+        "aioboto3",
+        "aiofiles",
+        "aiohttp<=3.6.2",
         "aiocache",
         "affine",
         "imagecodecs",

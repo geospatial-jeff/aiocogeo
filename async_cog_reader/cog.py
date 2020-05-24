@@ -4,75 +4,48 @@ from functools import partial
 import math
 from typing import List, Optional
 
-import aiohttp
 from aiocache import cached, Cache
 import affine
 import numpy as np
 from skimage.transform import resize
 
-from .constants import COMPRESSIONS, HEADER_OFFSET, INTERLEAVE, PHOTOMETRIC
-from .compression import Compressions
-from .counter import BytesReader
+from .constants import PHOTOMETRIC
 from .errors import InvalidTiffError, TileNotFoundError
+from .filesystems import Filesystem
 from .ifd import IFD
 
 
 @dataclass
 class COGReader:
     filepath: str
-    session: Optional[aiohttp.ClientSession] = None
-
-    async def __aenter__(self):
-        self._session_keep_alive = True
-        if not self.session:
-            self._session_keep_alive = False
-            self.session = aiohttp.ClientSession()
-        bytes_reader = BytesReader(b"", self.filepath, self.session)
-        bytes_reader.data = await bytes_reader.range_request(0, HEADER_OFFSET)
-        if (await bytes_reader.read(2)) == b"MM":
-            bytes_reader._endian = ">"
-        version = await bytes_reader.read(2, cast_to_int=True)
-        if version == 42:
-            first_ifd = await bytes_reader.read(4, cast_to_int=True)
-            bytes_reader.seek(first_ifd)
-            async with COGTiff(
-                filepath=self.filepath,
-                session=self.session,
-                _bytes_reader=bytes_reader,
-                _session_keep_alive=self._session_keep_alive,
-            ) as cog:
-                return cog
-        elif version == 43:
-            async with COGBigTiff() as cog:
-                return cog
-        else:
-            raise InvalidTiffError("Not a valid TIFF")
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        # Don't close session if it was instantiated outside the class
-        if not self._session_keep_alive:
-            await self.session.close()
-
-
-@dataclass
-class COGBigTiff(COGReader):
-    async def __aenter__(self):
-        ...
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        ...
-
-
-
-@dataclass
-class COGTiff(COGReader):
     ifds: Optional[List[IFD]] = field(default_factory=lambda: [])
 
-    _bytes_reader: Optional[BytesReader] = None
     _version: Optional[int] = 42
     _big_tiff: Optional[bool] = False
 
-    _session_keep_alive: Optional[bool] = True
+
+    async def __aenter__(self):
+        async with Filesystem.create_from_filepath(self.filepath) as file_reader:
+            self._file_reader = file_reader
+            if (await file_reader.read(2)) == b"MM":
+                file_reader._endian = ">"
+            version = await file_reader.read(2, cast_to_int=True)
+            if version == 42:
+                first_ifd = await file_reader.read(4, cast_to_int=True)
+                file_reader.seek(first_ifd)
+                await self.read_header()
+            elif version == 43:
+                raise NotImplementedError("BigTiff is not yet supported")
+            else:
+                raise InvalidTiffError("Not a valid TIFF")
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self._file_reader.close()
+
+    def __iter__(self):
+        for ifd in self.ifds:
+            yield ifd
 
     @property
     def profile(self):
@@ -118,9 +91,9 @@ class COGTiff(COGReader):
     async def read_header(self):
         next_ifd_offset = 1
         while next_ifd_offset != 0:
-            ifd = await IFD.read(self._bytes_reader)
+            ifd = await IFD.read(self._file_reader)
             next_ifd_offset = ifd.next_ifd_offset
-            self._bytes_reader.seek(next_ifd_offset)
+            self._file_reader.seek(next_ifd_offset)
             self.ifds.append(ifd)
 
     def geotransform(self, ovr_level: int = 0):
@@ -188,8 +161,8 @@ class COGTiff(COGReader):
             raise TileNotFoundError(f"Tile {x} {y} {z} does not exist")
         offset = ifd.TileOffsets[idx]
         byte_count = ifd.TileByteCounts[idx] - 1
-        tile = await self._bytes_reader.range_request(offset, byte_count)
-        decoded = Compressions(ifd, self._bytes_reader, tile).decompress()
+        tile = await self._file_reader.range_request(offset, byte_count)
+        decoded = ifd.decompress(tile)
         return decoded
 
     def _calculate_image_tiles(self, bounds, ovr_level):
@@ -287,14 +260,3 @@ class COGTiff(COGReader):
         ).astype(ifd.dtype)
 
         return resized
-
-    async def __aenter__(self):
-        await self.read_header()
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        ...
-
-    def __iter__(self):
-        for ifd in self.ifds:
-            yield ifd
