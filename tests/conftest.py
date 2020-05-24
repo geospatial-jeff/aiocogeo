@@ -12,8 +12,8 @@ TEST_DATA = [
     "https://async-cog-reader-test-data.s3.amazonaws.com/0097d134-9be4-47f6-816d-edb77c9ed79e.tif",  # 3 band, JPEG ycbcr
     "https://async-cog-reader-test-data.s3.amazonaws.com/lzw_cog.tif",  # 3 band lzw (RGBA)
     "https://async-cog-reader-test-data.s3.amazonaws.com/webp_cog.tif",
-    os.path.join(DATA_DIR, "cog.tif"),
     "s3://async-cog-reader-test-data/lzw_cog.tif",
+    os.path.join(DATA_DIR, "cog.tif"),
 ]
 
 
