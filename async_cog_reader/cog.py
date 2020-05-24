@@ -188,12 +188,24 @@ class COGReader:
             (ymax + 1) * tile_height,
         )
 
+        # Create geotransform for the fused image
+        _tlx, _tly = geotransform * (tile_bounds[0], tile_bounds[1])
+        fused_gt = affine.Affine(
+            geotransform.a,
+            geotransform.b,
+            _tlx,
+            geotransform.d,
+            geotransform.e,
+            _tly
+        )
+        inv_fused_gt = ~fused_gt
+        xorigin, yorigin = [round(v) for v in inv_fused_gt * (bounds[0], bounds[3])]
         return {
+            "tlx": xorigin,
+            "tly": yorigin,
+            "width": round(brx - tlx),
+            "height": round(bry - tly),
             "tile_ranges": (xmin, ymin, xmax, ymax),
-            "tile_bounds": tile_bounds,
-            "request_bounds": (tlx, bry, brx, tly),
-            "xtransform": (tlx - tile_bounds[0]) / float(tile_bounds[2] - tile_bounds[0]),
-            "ytransform": (bry - tile_bounds[1]) / float(tile_bounds[3] - tile_bounds[1]),
         }
 
     @staticmethod
@@ -241,20 +253,14 @@ class COGReader:
                 tile_tasks.append(get_tile_task)
         await asyncio.gather(*tile_tasks)
 
-        # Clip the requested tiles to the extent of the request bounds
-        request_height = math.floor(
-            img_tiles["request_bounds"][1] - img_tiles["request_bounds"][3]
-        )
-        request_width = math.floor(
-            img_tiles["request_bounds"][2] - img_tiles["request_bounds"][0]
-        )
-        yorigin = fused.shape[0] - int(round(fused.shape[0] * img_tiles["ytransform"]))
-        xorigin = int(round(fused.shape[1] * img_tiles["xtransform"]))
+        # Clip to request bounds
         clipped = fused[
-            yorigin : yorigin + request_height, xorigin : xorigin + request_width, :
+            img_tiles['tly']: img_tiles['tly'] + img_tiles['height'],
+            img_tiles['tlx']: img_tiles['tlx'] + img_tiles['width'],
+            :
         ]
 
-        # Resample to match the requested shape
+        # Resample to match request size
         resized = resize(
             clipped, output_shape=shape, preserve_range=True, anti_aliasing=True
         ).astype(ifd.dtype)

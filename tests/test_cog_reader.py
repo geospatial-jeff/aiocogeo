@@ -1,9 +1,14 @@
-import pytest
+import math
 
+import mercantile
 import numpy as np
+import pytest
 import rasterio
+from rasterio.warp import transform_bounds
 from rasterio.windows import Window
+from rio_tiler.io import cogeo
 from rio_tiler import utils as rio_tiler_utils
+from shapely.geometry import Polygon
 
 from async_cog_reader.ifd import IFD
 from async_cog_reader.tag import Tag
@@ -66,7 +71,7 @@ async def test_cog_metadata_overviews(infile, create_cog_reader):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("infile", TEST_DATA)
-async def test_cog_read_tile(infile, create_cog_reader):
+async def test_cog_read_internal_tile(infile, create_cog_reader):
     async with create_cog_reader(infile) as cog:
         # Read top left tile at native resolution
         tile = await cog.get_tile(0, 0, 0)
@@ -88,6 +93,44 @@ async def test_cog_read_tile(infile, create_cog_reader):
             )
             assert rio_tile.shape == tile.shape
             assert np.allclose(tile, rio_tile, rtol=1)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("infile", TEST_DATA[:-1])
+async def test_cog_calculate_image_tiles(infile, create_cog_reader):
+    async with create_cog_reader(infile) as cog:
+        ovr_level = 0
+        gt = cog.geotransform(ovr_level)
+
+        # Find bounds of top left tile at native res
+        bounds = (
+            gt.c,
+            gt.f + cog.ifds[0].TileHeight.value * gt.e,
+            gt.c + cog.ifds[0].TileWidth.value * gt.a,
+            gt.f
+        )
+
+        img_tile = cog._calculate_image_tiles(bounds, ovr_level)
+        assert img_tile['tlx'] == img_tile['tly'] == 0
+        assert img_tile['width'] == cog.ifds[0].TileWidth.value
+        assert img_tile['height'] == cog.ifds[0].TileHeight.value
+        assert img_tile['tile_ranges'] == (0, 0, 1, 1)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("infile", TEST_DATA[:-1])
+async def test_cog_read(infile, create_cog_reader):
+    async with create_cog_reader(infile) as cog:
+        zoom = math.floor(math.log2((2 * math.pi * 6378137 / 256) / cog.geotransform().a))
+        centroid = Polygon.from_bounds(*transform_bounds(cog.epsg, "EPSG:4326", *cog.bounds)).centroid
+        tile = mercantile.tile(centroid.x, centroid.y, zoom)
+
+        tile_native_bounds = transform_bounds("EPSG:4326", cog.epsg, *mercantile.bounds(tile))
+
+        arr = await cog.read(tile_native_bounds, (256, 256, 3))
+        tile_arr, mask = cogeo.tile(infile, tile.x, tile.y, tile.z, tilesize=256, resampling_method="bilinear")
+
+        assert np.allclose(np.rollaxis(arr, 2, 0), tile_arr, rtol=10)
 
 
 @pytest.mark.asyncio

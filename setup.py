@@ -22,10 +22,12 @@ setup(
         'pytest-runner'
     ],
     tests_require=[
+        "mercantile",
         "pytest",
         "pytest-asyncio<0.11.0",
         "pytest-cov",
         "rasterio",
-        "rio-tiler==2.0a4"
+        "rio-tiler==2.0a4",
+        "shapely",
     ]
 )
