@@ -63,7 +63,7 @@ async with COGReader("https://async-cog-reader-test-data.s3.amazonaws.com/lzw_co
     first_ifd = cog.ifds[0]
     assert first_ifd.tag_count == 24
 
-    for tag in cog.ifds[0]:
+    for tag in first_ifd:
         print(tag)
 
 >>> Tag(code=258, name='BitsPerSample', tag_type=TagType(format='H', size=2), count=3, length=6, value=(8, 8, 8))
