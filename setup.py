@@ -15,12 +15,14 @@ setup(
         "aiocache",
         "affine",
         "imagecodecs",
-        "scikit-image"
+        "scikit-image",
+        "typer",
     ],
     test_suite="tests",
     setup_requires=[
         'pytest-runner'
     ],
+    entry_points={"console_scripts": ["aiocogeo=async_cog_reader.scripts.cli:app"]},
     tests_require=[
         "mercantile",
         "pytest",
