@@ -166,6 +166,7 @@ class COGReader:
         """
         https://github.com/mapbox/COGDumper/blob/master/cogdumper/cog_tiles.py#L337-L365
         """
+        futures = []
         if z > len(self.ifds):
             raise TileNotFoundError(f"Overview {z} does not exist.")
         ifd = self.ifds[z]
@@ -174,16 +175,26 @@ class COGReader:
             raise TileNotFoundError(f"Tile {x} {y} {z} does not exist")
         offset = ifd.TileOffsets[idx]
         byte_count = ifd.TileByteCounts[idx] - 1
-        tile = await self._file_reader.range_request(offset, byte_count)
-        decoded = ifd.decompress(tile)
+        tile_task = asyncio.create_task(
+            self._file_reader.range_request(offset, byte_count)
+        )
+        futures.append(tile_task)
 
-        if self.mask_ifds:
+        if self.is_masked:
             mask_ifd = self.mask_ifds[z]
             offset = mask_ifd.TileOffsets[idx]
             byte_count = mask_ifd.TileByteCounts[idx] - 1
-            tile = await self._file_reader.range_request(offset, byte_count)
-            mask_decoded = mask_ifd.decompress_mask(tile)
-            decoded = np.ma.masked_where(np.broadcast_to(mask_decoded, decoded.shape)==0, decoded)
+            mask_task = asyncio.create_task(
+                self._file_reader.range_request(offset, byte_count)
+            )
+            futures.append(mask_task)
+
+        img_bytes = await asyncio.gather(*futures)
+
+        decoded = ifd.decompress(img_bytes[0])
+        if self.is_masked:
+            mask = mask_ifd.decompress_mask(img_bytes[1])
+            decoded = np.ma.masked_where(np.broadcast_to(mask, decoded.shape)==0, decoded)
 
         return decoded
 
