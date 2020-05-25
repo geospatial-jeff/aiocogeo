@@ -89,6 +89,10 @@ class COGReader:
     def overviews(self):
         return [2 ** (ifd + 1) for ifd in range(len(self.ifds) - 1)]
 
+    @property
+    def is_masked(self):
+        return True if self.mask_ifds else False
+
     async def read_header(self):
         next_ifd_offset = 1
         while next_ifd_offset != 0:
@@ -194,11 +198,10 @@ class COGReader:
         brx, bry = invgt * (bounds[2], bounds[1])
 
         # Calculate tiles
-        eps = 10.0 ** -6 * (2.0 - 1.0 * math.ceil(0.1)) # Resolve floating point errors
-        xmin = math.floor((tlx + eps) / tile_width)
-        xmax = math.floor((brx + eps) / tile_width)
-        ymax = math.floor((bry + eps) / tile_height)
-        ymin = math.floor((tly + eps) / tile_height)
+        xmin = math.floor((tlx + 1e-6) / tile_width)
+        xmax = math.floor((brx + 1e-6) / tile_width)
+        ymax = math.floor((bry + 1e-6) / tile_height)
+        ymin = math.floor((tly + 1e-6) / tile_height)
 
         tile_bounds = (
             xmin * tile_width,

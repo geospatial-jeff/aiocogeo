@@ -90,6 +90,7 @@ async def test_cog_read_internal_tile(infile, create_cog_reader):
                 window=window
             )
             if np.ma.is_masked(tile):
+                assert cog.is_masked
                 tile_arr = np.ma.getdata(tile)
                 tile_mask = np.ma.getmask(tile)
                 rio_mask = src.read_masks(1, window=window)
