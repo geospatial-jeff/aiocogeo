@@ -42,11 +42,16 @@ class Compression(metaclass=abc.ABCMeta):
                 f"{self.compression} is not currently supported"
             ) from e
 
+    def decompress_mask(self, tile):
+        decoded = np.frombuffer(imagecodecs.zlib_decode(tile), np.dtype('uint8'))
+        mask = np.unpackbits(decoded).reshape(self.TileHeight.value, self.TileWidth.value) * 255
+        return mask
+
     def _reshape(self, arr):
         return arr.reshape(
             self.TileHeight.value,
             self.TileWidth.value,
-            self.bands
+            self.bands,
         )
 
     def _unpredict(self, arr):
@@ -68,18 +73,18 @@ class Compression(metaclass=abc.ABCMeta):
             else:
                 raise Exception("Missing SOI marker for JPEG tile")
         decoded = imagecodecs.jpeg_decode(tile)
-        return decoded
+        return np.rollaxis(decoded, 2, 0)
 
     def _lzw(self, tile):
         decoded = self._reshape(np.frombuffer(imagecodecs.lzw_decode(tile), self.dtype))
         self._unpredict(decoded)
-        return decoded
+        return np.rollaxis(decoded, 2, 0)
 
     def _webp(self, tile):
-        decoded = imagecodecs.webp_decode(tile)
+        decoded = np.rollaxis(imagecodecs.webp_decode(tile), 2, 0)
         return decoded
 
     def _deflate(self, tile):
-        decoded = self._reshape(np.frombuffer(imagecodecs.zlib_decode(tile)))
+        decoded = self._reshape(np.frombuffer(imagecodecs.zlib_decode(tile), self.dtype))
         self._unpredict(decoded)
-        return decoded
+        return np.rollaxis(decoded, 2, 0)

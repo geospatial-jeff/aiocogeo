@@ -67,24 +67,16 @@ class IFD(OptionalTags, Compression, RequiredTags, BaseIFD):
 
     @property
     def is_full_resolution(self):
-        # https://www.awaresystems.be/imaging/tiff/tifftags/newsubfiletype.html
-        # The image i'm using as a test case to add mask bands doesn't have a `NewSubfileType` on the first IFD although
-        # the spec reads like it should be on every IFD.  So we might not need this first if statement.
         if not self.NewSubfileType:
             return True
-        elif not self.NewSubfileType.value[0]:
-            return True
-        return False
-
-    @property
-    def is_reduced_resolution(self):
-        # https://www.awaresystems.be/imaging/tiff/tifftags/newsubfiletype.html
-        return False if not self.is_full_resolution else True
+        elif self.NewSubfileType.value[0] == 0:
+            return False
+        return True
 
     @property
     def is_mask(self):
-        # https://www.awaresystems.be/imaging/tiff/tifftags/newsubfiletype.html
-        # https://gdal.org/drivers/raster/gtiff.html#internal-nodata-masks
+        # # https://www.awaresystems.be/imaging/tiff/tifftags/newsubfiletype.html
+        # # https://gdal.org/drivers/raster/gtiff.html#internal-nodata-masks
         if self.NewSubfileType:
             if self.NewSubfileType.value[2] == 1 and self.PhotometricInterpretation.value == 4 and self.compression == "deflate":
                 return True

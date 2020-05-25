@@ -85,7 +85,7 @@ class LocalFilesystem(Filesystem):
         await self.file.seek(start)
         self._total_bytes_requested += (offset - start)
         self._total_requests += 1
-        return await self.file.read(offset)
+        return await self.file.read(offset+1)
 
     async def close(self):
         await self.file.close()
