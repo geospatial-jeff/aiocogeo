@@ -12,9 +12,9 @@ async with COGReader("http://cog.tif") as cog:
 ```
 
 Several filesystems are supported:
-- *HTTP/HTTPS* (`http://`, `https://`)
-- *S3* (`s3://`)
-- *File* (`/`)
+- **HTTP/HTTPS** (`http://`, `https://`)
+- **S3** (`s3://`)
+- **File** (`/`)
 
 ### Metadata
 Generating a [rasterio-style profile](https://rasterio.readthedocs.io/en/latest/topics/profiles.html) for the COG:
@@ -120,7 +120,7 @@ async with COGReader("https://async-cog-reader-test-data.s3.amazonaws.com/naip_i
     assert np.ma.is_masked(tile)
 ```
 
-<p float="middle">
+<p align="center">
   <img src="https://async-cog-reader-test-data.s3.amazonaws.com/readme/masked_tile.jpg" width="300" />
   <img src="https://async-cog-reader-test-data.s3.amazonaws.com/readme/tile_mask.jpg" width="300" /> 
 </p>
