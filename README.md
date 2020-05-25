@@ -122,5 +122,5 @@ async with COGReader("https://async-cog-reader-test-data.s3.amazonaws.com/naip_i
 
 <p align="center">
   <img src="https://async-cog-reader-test-data.s3.amazonaws.com/readme/masked_tile.jpg" width="300" />
-  <img src="https://async-cog-reader-test-data.s3.amazonaws.com/readme/tile_mask.jpg" width="300" /> 
+  <img src="https://async-cog-reader-test-data.s3.amazonaws.com/readme/mask.jpg" width="300" /> 
 </p>
