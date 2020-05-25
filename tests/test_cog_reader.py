@@ -79,20 +79,39 @@ async def test_cog_read_internal_tile(infile, create_cog_reader):
 
         # Make sure tile is the right size
         assert tile.shape == (
+            ifd.SamplesPerPixel.value,
             ifd.TileHeight.value,
             ifd.TileWidth.value,
-            ifd.SamplesPerPixel.value,
         )
 
-        # Rearrange numpy array to match rasterio
-        tile = np.rollaxis(tile, 2, 0)
-
         with rasterio.open(infile) as src:
+            window = Window(0, 0, ifd.TileWidth.value, ifd.TileHeight.value)
             rio_tile = src.read(
-                window=Window(0, 0, ifd.TileWidth.value, ifd.TileHeight.value)
+                window=window
             )
-            assert rio_tile.shape == tile.shape
-            assert np.allclose(tile, rio_tile, rtol=1)
+            if np.ma.is_masked(tile):
+                assert cog.is_masked
+                tile_arr = np.ma.getdata(tile)
+                tile_mask = np.ma.getmask(tile)
+                rio_mask = src.read_masks(1, window=window)
+
+                # Make sure image data is the same
+                assert pytest.approx(np.min(rio_tile), 2) == np.min(tile_arr)
+                assert pytest.approx(np.mean(rio_tile), 2) == np.mean(tile_arr)
+                assert pytest.approx(np.max(rio_tile), 2) == np.max(tile_arr)
+
+                # Make sure mask data is the same
+                rio_mask_counts = np.unique(rio_mask, return_counts=True)
+                tile_mask_counts = np.unique(tile_mask, return_counts=True)
+                assert rio_mask_counts[0].all() == tile_mask_counts[0].all()
+                assert rio_mask_counts[1].all() == tile_mask_counts[1].all()
+            else:
+                # Make sure image data is the same
+                assert pytest.approx(np.min(rio_tile), 2) == np.min(tile)
+                assert pytest.approx(np.mean(rio_tile), 2) == np.mean(tile)
+                assert pytest.approx(np.max(rio_tile), 2) == np.max(tile)
+
+
 
 
 @pytest.mark.asyncio
@@ -118,7 +137,7 @@ async def test_cog_calculate_image_tiles(infile, create_cog_reader):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("infile", TEST_DATA[:-1])
+@pytest.mark.parametrize("infile", TEST_DATA[:-2])
 async def test_cog_read(infile, create_cog_reader):
     async with create_cog_reader(infile) as cog:
         zoom = math.floor(math.log2((2 * math.pi * 6378137 / 256) / cog.geotransform().a))
@@ -127,10 +146,27 @@ async def test_cog_read(infile, create_cog_reader):
 
         tile_native_bounds = transform_bounds("EPSG:4326", cog.epsg, *mercantile.bounds(tile))
 
-        arr = await cog.read(tile_native_bounds, (256, 256, 3))
-        tile_arr, mask = cogeo.tile(infile, tile.x, tile.y, tile.z, tilesize=256, resampling_method="bilinear")
+        arr = await cog.read(tile_native_bounds, (256, 256))
+        rio_tile_arr, rio_tile_mask = cogeo.tile(infile, tile.x, tile.y, tile.z, tilesize=256, resampling_method="bilinear")
 
-        assert np.allclose(np.rollaxis(arr, 2, 0), tile_arr, rtol=10)
+        if np.ma.is_masked(arr):
+            tile_arr = np.ma.getdata(tile)
+            tile_mask = np.ma.getmask(tile)
+
+            # Make sure image data is the same
+            assert pytest.approx(np.min(tile_arr), 2) == np.min(rio_tile_arr)
+            assert pytest.approx(np.mean(tile_arr), 2) == np.mean(rio_tile_arr)
+            assert pytest.approx(np.max(tile_arr), 2) == np.max(rio_tile_arr)
+
+            # Make sure mask data is the same
+            rio_mask_counts = np.unique(rio_tile_mask, return_counts=True)
+            tile_mask_counts = np.unique(tile_mask, return_counts=True)
+            assert rio_mask_counts[0].all() == tile_mask_counts[0].all()
+            assert rio_mask_counts[1].all() == tile_mask_counts[1].all()
+        else:
+            assert pytest.approx(np.min(tile), 2) == np.min(rio_tile_arr)
+            assert pytest.approx(np.mean(tile), 2) == np.mean(rio_tile_arr)
+            assert pytest.approx(np.max(tile), 2) == np.max(rio_tile_arr)
 
 
 @pytest.mark.asyncio

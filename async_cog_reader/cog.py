@@ -19,6 +19,7 @@ from .ifd import IFD
 class COGReader:
     filepath: str
     ifds: Optional[List[IFD]] = field(default_factory=lambda: [])
+    mask_ifds: Optional[List[IFD]] = field(default_factory=lambda: [])
 
     _version: Optional[int] = 42
     _big_tiff: Optional[bool] = False
@@ -88,13 +89,25 @@ class COGReader:
     def overviews(self):
         return [2 ** (ifd + 1) for ifd in range(len(self.ifds) - 1)]
 
+    @property
+    def is_masked(self):
+        return True if self.mask_ifds else False
+
     async def read_header(self):
         next_ifd_offset = 1
         while next_ifd_offset != 0:
             ifd = await IFD.read(self._file_reader)
             next_ifd_offset = ifd.next_ifd_offset
             self._file_reader.seek(next_ifd_offset)
-            self.ifds.append(ifd)
+            # Hack to correctly identify full resolution mask ifds in deflate compressed images
+            # This assumes that the image ifd always comes before the mask ifd
+            try:
+                if ifd.is_mask or (ifd.is_full_resolution and ifd.ImageHeight.value == self.ifds[0].ImageHeight.value):
+                    self.mask_ifds.append(ifd)
+                else:
+                    self.ifds.append(ifd)
+            except IndexError:
+                self.ifds.append(ifd)
 
     def geotransform(self, ovr_level: int = 0):
         # Calculate overview for source image
@@ -153,6 +166,7 @@ class COGReader:
         """
         https://github.com/mapbox/COGDumper/blob/master/cogdumper/cog_tiles.py#L337-L365
         """
+        futures = []
         if z > len(self.ifds):
             raise TileNotFoundError(f"Overview {z} does not exist.")
         ifd = self.ifds[z]
@@ -161,8 +175,27 @@ class COGReader:
             raise TileNotFoundError(f"Tile {x} {y} {z} does not exist")
         offset = ifd.TileOffsets[idx]
         byte_count = ifd.TileByteCounts[idx] - 1
-        tile = await self._file_reader.range_request(offset, byte_count)
-        decoded = ifd.decompress(tile)
+        tile_task = asyncio.create_task(
+            self._file_reader.range_request(offset, byte_count)
+        )
+        futures.append(tile_task)
+
+        if self.is_masked:
+            mask_ifd = self.mask_ifds[z]
+            offset = mask_ifd.TileOffsets[idx]
+            byte_count = mask_ifd.TileByteCounts[idx] - 1
+            mask_task = asyncio.create_task(
+                self._file_reader.range_request(offset, byte_count)
+            )
+            futures.append(mask_task)
+
+        img_bytes = await asyncio.gather(*futures)
+
+        decoded = ifd.decompress(img_bytes[0])
+        if self.is_masked:
+            mask = mask_ifd.decompress_mask(img_bytes[1])
+            decoded = np.ma.masked_where(np.broadcast_to(mask, decoded.shape)==0, decoded)
+
         return decoded
 
     def _calculate_image_tiles(self, bounds, ovr_level):
@@ -176,10 +209,10 @@ class COGReader:
         brx, bry = invgt * (bounds[2], bounds[1])
 
         # Calculate tiles
-        xmin = math.floor(tlx / tile_width)
-        xmax = math.floor(brx / tile_width)
-        ymax = math.floor(bry / tile_height)
-        ymin = math.floor(tly / tile_height)
+        xmin = math.floor((tlx + 1e-6) / tile_width)
+        xmax = math.floor((brx + 1e-6) / tile_width)
+        ymax = math.floor((bry + 1e-6) / tile_height)
+        ymin = math.floor((tly + 1e-6) / tile_height)
 
         tile_bounds = (
             xmin * tile_width,
@@ -212,9 +245,9 @@ class COGReader:
     def stitch_image_tile(fut, fused_arr, idx, idy, tile_width, tile_height):
         img_arr = fut.result()
         fused_arr[
-            idy * tile_height : (idy + 1) * tile_height,
-            idx * tile_width : (idx + 1) * tile_width,
             :,
+            idy * tile_height : (idy + 1) * tile_height,
+            idx * tile_width : (idx + 1) * tile_width
         ] = img_arr
 
     async def read(self, bounds, shape):
@@ -230,9 +263,9 @@ class COGReader:
         tile_tasks = []
         fused = np.zeros(
             (
+                ifd.bands,
                 (ymax + 1 - ymin) * tile_height,
                 (xmax + 1 - xmin) * tile_width,
-                ifd.bands,
             )
         ).astype(ifd.dtype)
         for idx, xtile in enumerate(range(xmin, xmax + 1)):
@@ -255,14 +288,14 @@ class COGReader:
 
         # Clip to request bounds
         clipped = fused[
+            :,
             img_tiles['tly']: img_tiles['tly'] + img_tiles['height'],
-            img_tiles['tlx']: img_tiles['tlx'] + img_tiles['width'],
-            :
+            img_tiles['tlx']: img_tiles['tlx'] + img_tiles['width']
         ]
 
         # Resample to match request size
         resized = resize(
-            clipped, output_shape=shape, preserve_range=True, anti_aliasing=True
+            clipped, output_shape=(ifd.bands, shape[0], shape[1]), preserve_range=True, anti_aliasing=True
         ).astype(ifd.dtype)
 
         return resized
