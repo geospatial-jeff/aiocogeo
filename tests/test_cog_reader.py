@@ -146,7 +146,7 @@ async def test_cog_read(infile, create_cog_reader):
 
         tile_native_bounds = transform_bounds("EPSG:4326", cog.epsg, *mercantile.bounds(tile))
 
-        arr = await cog.read(tile_native_bounds, (3, 256, 256))
+        arr = await cog.read(tile_native_bounds, (256, 256))
         rio_tile_arr, rio_tile_mask = cogeo.tile(infile, tile.x, tile.y, tile.z, tilesize=256, resampling_method="bilinear")
 
         if np.ma.is_masked(arr):

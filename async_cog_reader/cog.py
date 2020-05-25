@@ -295,7 +295,7 @@ class COGReader:
 
         # Resample to match request size
         resized = resize(
-            clipped, output_shape=shape, preserve_range=True, anti_aliasing=True
+            clipped, output_shape=(ifd.bands, shape[0], shape[1]), preserve_range=True, anti_aliasing=True
         ).astype(ifd.dtype)
 
         return resized
