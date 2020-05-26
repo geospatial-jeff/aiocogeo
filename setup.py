@@ -1,13 +1,30 @@
 from setuptools import setup
 
+with open("README.md") as f:
+    desc = f.read()
+
 setup(
     name="aiocogeo",
-    version="0.1",
+    description="Asynchronous cogeotiff reader",
+    long_description=desc,
+    long_description_content_type="text/markdown",
+    version="0.0.1",
     author=u"Jeff Albrecht",
     author_email="geospatialjeff@gmail.com",
-    url="https://github.com/geospatial-jeff/async-cog-reader",
+    url="https://github.com/geospatial-jeff/aiocogeo",
     license="mit",
     python_requires=">=3.7",
+    classifiers=[
+        'Intended Audience :: Developers',
+        "Intended Audience :: Information Technology",
+        "Intended Audience :: Science/Research",
+        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        'License :: OSI Approved :: MIT License',
+    ],
+    keywords="cogeo COG",
+    include_package_data=True,
     install_requires=[
         "aioboto3",
         "aiofiles",
