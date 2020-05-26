@@ -1,4 +1,4 @@
-# aiocogeo [![CircleCI](https://circleci.com/gh/geospatial-jeff/async-cog-reader/tree/master.svg?style=svg)](https://circleci.com/gh/geospatial-jeff/async-cog-reader/tree/master)
+# aiocogeo [![CircleCI](https://circleci.com/gh/geospatial-jeff/aiocogeo/tree/master.svg?style=svg)](https://circleci.com/gh/geospatial-jeff/async-cog-reader/tree/master)
 
 
 ## Usage
