@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 with open("README.md") as f:
     desc = f.read()
@@ -8,7 +8,7 @@ setup(
     description="Asynchronous cogeotiff reader",
     long_description=desc,
     long_description_content_type="text/markdown",
-    version="0.0.1",
+    version="0.0.2",
     author=u"Jeff Albrecht",
     author_email="geospatialjeff@gmail.com",
     url="https://github.com/geospatial-jeff/aiocogeo",
@@ -24,6 +24,7 @@ setup(
         'License :: OSI Approved :: MIT License',
     ],
     keywords="cogeo COG",
+    packages=find_packages(exclude=["tests"]),
     include_package_data=True,
     install_requires=[
         "aioboto3",
