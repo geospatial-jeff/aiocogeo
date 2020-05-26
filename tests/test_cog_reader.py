@@ -1,5 +1,6 @@
 import math
 
+from morecantile.models import TileMatrixSet
 import mercantile
 import numpy as np
 import pytest
@@ -10,9 +11,9 @@ from rio_tiler.io import cogeo
 from rio_tiler import utils as rio_tiler_utils
 from shapely.geometry import Polygon
 
-from async_cog_reader.ifd import IFD
-from async_cog_reader.tag import Tag
-from async_cog_reader.errors import InvalidTiffError
+from aiocogeo.ifd import IFD
+from aiocogeo.tag import Tag
+from aiocogeo.errors import InvalidTiffError
 
 from .conftest import TEST_DATA
 
@@ -185,6 +186,14 @@ async def test_cog_get_overview_level(create_cog_reader, width, height):
             expected_ovr = 0 if expected_ovr == -1 else expected_ovr
             assert ovr == expected_ovr
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "infile", TEST_DATA
+)
+async def test_cog_tile_matrix_set(infile, create_cog_reader):
+    async with create_cog_reader(infile) as cog:
+        tile_matrix_set = cog.create_tile_matrix_set()
+        TileMatrixSet(**tile_matrix_set)
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("infile", [TEST_DATA[0]])

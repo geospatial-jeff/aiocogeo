@@ -1,4 +1,4 @@
-# [WIP] async-cog-reader [![CircleCI](https://circleci.com/gh/geospatial-jeff/async-cog-reader/tree/master.svg?style=svg)](https://circleci.com/gh/geospatial-jeff/async-cog-reader/tree/master)
+# [WIP] aiocogeo [![CircleCI](https://circleci.com/gh/geospatial-jeff/async-cog-reader/tree/master.svg?style=svg)](https://circleci.com/gh/geospatial-jeff/async-cog-reader/tree/master)
 
 
 ## Usage
@@ -124,3 +124,23 @@ async with COGReader("https://async-cog-reader-test-data.s3.amazonaws.com/naip_i
   <img src="https://async-cog-reader-test-data.s3.amazonaws.com/readme/masked_tile.jpg" width="300" />
   <img src="https://async-cog-reader-test-data.s3.amazonaws.com/readme/mask.jpg" width="300" /> 
 </p>
+
+## CLI
+```
+$ aiocogeo --help
+Usage: aiocogeo [OPTIONS] COMMAND [ARGS]...
+
+Options:
+  --install-completion [bash|zsh|fish|powershell|pwsh]
+                                  Install completion for the specified shell.
+  --show-completion [bash|zsh|fish|powershell|pwsh]
+                                  Show completion for the specified shell, to
+                                  copy it or customize the installation.
+
+  --help                          Show this message and exit.
+
+Commands:
+  create-tms  Create OGC TileMatrixSet.
+  info        Read COG metadata.
+
+```

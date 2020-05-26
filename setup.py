@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(
-    name="async-cog-reader",
+    name="aiocogeo",
     version="0.1",
     author=u"Jeff Albrecht",
     author_email="geospatialjeff@gmail.com",
@@ -15,14 +15,17 @@ setup(
         "aiocache",
         "affine",
         "imagecodecs",
-        "scikit-image"
+        "scikit-image",
+        "typer",
     ],
     test_suite="tests",
     setup_requires=[
         'pytest-runner'
     ],
+    entry_points={"console_scripts": ["aiocogeo=aiocogeo.scripts.cli:app"]},
     tests_require=[
         "mercantile",
+        "morecantile",
         "pytest",
         "pytest-asyncio<0.11.0",
         "pytest-cov",

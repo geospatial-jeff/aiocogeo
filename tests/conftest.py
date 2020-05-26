@@ -2,8 +2,10 @@ import os
 
 import aiohttp
 import pytest
+from typer.testing import CliRunner
 
-from async_cog_reader import COGReader
+from aiocogeo import COGReader
+
 
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
@@ -32,3 +34,8 @@ def create_cog_reader(client_session):
         return COGReader(filepath=infile)
 
     return _create_reader
+
+
+@pytest.fixture
+def cli_runner():
+    return CliRunner()
