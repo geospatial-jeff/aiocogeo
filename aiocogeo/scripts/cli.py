@@ -3,9 +3,8 @@ from functools import wraps
 import json
 
 import typer
-from urllib.parse import urlsplit
 
-from async_cog_reader import COGReader
+from aiocogeo import COGReader
 
 app = typer.Typer()
 
