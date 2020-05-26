@@ -11,9 +11,9 @@ from rio_tiler.io import cogeo
 from rio_tiler import utils as rio_tiler_utils
 from shapely.geometry import Polygon
 
-from async_cog_reader.ifd import IFD
-from async_cog_reader.tag import Tag
-from async_cog_reader.errors import InvalidTiffError
+from aiocogeo.ifd import IFD
+from aiocogeo.tag import Tag
+from aiocogeo.errors import InvalidTiffError
 
 from .conftest import TEST_DATA
 

@@ -3,7 +3,7 @@ import os
 import aiohttp
 import pytest
 
-from async_cog_reader import COGReader
+from aiocogeo import COGReader
 
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")

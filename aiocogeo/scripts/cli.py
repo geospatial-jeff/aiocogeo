@@ -3,6 +3,7 @@ from functools import wraps
 import json
 
 import typer
+from urllib.parse import urlsplit
 
 from async_cog_reader import COGReader
 
@@ -36,9 +37,13 @@ def _create_ifd_table(ifds, start="\t"):
     return table
 
 
-@app.command()
+@app.command(
+    short_help="Read COG metadata.",
+    help="Read COG profile, IFD, and mask IFD metadata.",
+    no_args_is_help=True
+)
 @coro
-async def info(filepath: str):
+async def info(filepath: str = typer.Argument(..., file_okay=True)):
     sep = 25
     async with COGReader(filepath) as cog:
         profile = cog.profile
@@ -72,7 +77,11 @@ async def info(filepath: str):
             )
 
 
-@app.command()
+@app.command(
+    short_help="Create tile matrix set.",
+    help="Create OGC TileMatrixSet representation of the COG where each IFD is a unique tile matrix.",
+    no_args_is_help=True
+)
 @coro
 async def create_tms(filepath: str):
     async with COGReader(filepath) as cog:

@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(
-    name="async-cog-reader",
+    name="aiocogeo",
     version="0.1",
     author=u"Jeff Albrecht",
     author_email="geospatialjeff@gmail.com",
