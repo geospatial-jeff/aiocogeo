@@ -5,7 +5,7 @@
 COGs are opened using the `COGReader` asynchronous context manager:
 
 ```python
-from async_cog_reader import COGReader
+from aiocogeo import COGReader
 
 async with COGReader("http://cog.tif") as cog:
     ...
@@ -31,8 +31,8 @@ async with COGReader("https://async-cog-reader-test-data.s3.amazonaws.com/lzw_co
 A COG is composed of several IFDs, each with many TIFF tags:
 
 ```python
-from async_cog_reader.ifd import IFD
-from async_cog_reader.tag import Tag
+from aiocogeo.ifd import IFD
+from aiocogeo.tag import Tag
 
 async with COGReader("https://async-cog-reader-test-data.s3.amazonaws.com/lzw_cog.tif") as cog:
     for ifd in cog:
