@@ -22,7 +22,7 @@ setup(
     setup_requires=[
         'pytest-runner'
     ],
-    entry_points={"console_scripts": ["aiocogeo=async_cog_reader.scripts.cli:app"]},
+    entry_points={"console_scripts": ["aiocogeo=aiocogeo.scripts.cli:app"]},
     tests_require=[
         "mercantile",
         "morecantile",
