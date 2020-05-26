@@ -1,6 +1,6 @@
 import asyncio
 from functools import wraps
-import json
+import json as _json
 
 import typer
 
@@ -21,19 +21,65 @@ def _make_bold(s, **kwargs):
     return typer.style(s, bold=True, **kwargs)
 
 
+def _get_ifd_stats(ifds):
+    ifd_stats = []
+    for idx, ifd in enumerate(ifds):
+        tile_sizes = [b / 1000 for b in ifd.TileByteCounts.value]
+        mean_tile_size = round(sum(tile_sizes) / len(tile_sizes), 3)
+        ifd_stats.append({
+            'id': idx,
+            'size': (ifd.ImageWidth.value, ifd.ImageHeight.value),
+            'block_size': (ifd.TileWidth.value, ifd.TileHeight.value),
+            'tile_sizes': {
+                'min': min(tile_sizes),
+                'max': max(tile_sizes),
+                'mean': mean_tile_size
+            }
+        })
+    return ifd_stats
+
+
 def _create_ifd_table(ifds, start="\t"):
     table = (
         f"{start}{_make_bold('Id', underline=True):<20}{_make_bold('Size', underline=True):<27}"
         f"{_make_bold('BlockSize', underline=True):<26}{_make_bold('MinTileSize (KB)', underline=True):<33}"
         f"{_make_bold('MaxTileSize (KB)', underline=True):<33}{_make_bold('MeanTileSize (KB)', underline=True):<33}"
     )
-    for idx, ifd in enumerate(ifds):
-        tile_sizes = [b / 1000 for b in ifd.TileByteCounts.value]
-        mean_tile_size = round(sum(tile_sizes) / len(tile_sizes), 3)
-        size = f"{ifd.ImageWidth.value}x{ifd.ImageHeight.value}"
-        block_size = f"{ifd.TileWidth.value}x{ifd.TileHeight.value}"
-        table += f"\n\t\t{idx:<8}{size:<15}{block_size:<14}{min(tile_sizes):<21}{max(tile_sizes):<21}{mean_tile_size:<30}"
+    for stats in _get_ifd_stats(ifds):
+        table += (
+            f"\n\t\t{stats['id']:<8}"
+            f"{'x'.join([str(val) for val in stats['size']]):<15}"
+            f"{'x'.join([str(val) for val in stats['block_size']]):<14}"
+            f"{stats['tile_sizes']['min']:<21}"
+            f"{stats['tile_sizes']['max']:<21}"
+            f"{stats['tile_sizes']['mean']:<30}"
+        )
     return table
+
+def _create_json_info(cog):
+    profile = cog.profile
+
+    info = {
+        "file": cog.filepath,
+        "profile": {
+            "width": profile['width'],
+            "height": profile['height'],
+            "bands": profile['count'],
+            "dtype": profile['dtype'],
+            "crs": profile['crs'],
+            "origin": (profile['transform'].c, profile['transform'].f),
+            "resolution": (profile['transform'].a, profile['transform'].e),
+            "bbox": cog.bounds,
+            "compression": cog.ifds[0].compression,
+            "internal_mask": cog.is_masked
+        },
+        "ifd": _get_ifd_stats(cog.ifds)
+    }
+
+    if cog.is_masked:
+        info['mask_ifd'] = _get_ifd_stats(cog.mask_ifds)
+
+    return info
 
 
 @app.command(
@@ -42,9 +88,14 @@ def _create_ifd_table(ifds, start="\t"):
     no_args_is_help=True
 )
 @coro
-async def info(filepath: str = typer.Argument(..., file_okay=True)):
+async def info(
+    filepath: str = typer.Argument(..., file_okay=True),
+    json: bool = typer.Option(False, show_default=True, help="JSON-formatted response")
+):
     sep = 25
     async with COGReader(filepath) as cog:
+        if json:
+            return typer.echo(_json.dumps(_create_json_info(cog), indent=1))
         profile = cog.profile
         typer.echo(
             f"""
@@ -84,4 +135,4 @@ async def info(filepath: str = typer.Argument(..., file_okay=True)):
 @coro
 async def create_tms(filepath: str):
     async with COGReader(filepath) as cog:
-        typer.echo(json.dumps(cog.create_tile_matrix_set(), indent=1))
+        typer.echo(_json.dumps(cog.create_tile_matrix_set(), indent=1))
