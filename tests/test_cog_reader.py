@@ -1,5 +1,6 @@
 import math
 
+from morecantile.models import TileMatrixSet
 import mercantile
 import numpy as np
 import pytest
@@ -185,6 +186,14 @@ async def test_cog_get_overview_level(create_cog_reader, width, height):
             expected_ovr = 0 if expected_ovr == -1 else expected_ovr
             assert ovr == expected_ovr
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "infile", TEST_DATA
+)
+async def test_cog_tile_matrix_set(infile, create_cog_reader):
+    async with create_cog_reader(infile) as cog:
+        tile_matrix_set = cog.create_tile_matrix_set()
+        TileMatrixSet(**tile_matrix_set)
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("infile", [TEST_DATA[0]])

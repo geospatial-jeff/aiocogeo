@@ -25,6 +25,7 @@ setup(
     entry_points={"console_scripts": ["aiocogeo=async_cog_reader.scripts.cli:app"]},
     tests_require=[
         "mercantile",
+        "morecantile",
         "pytest",
         "pytest-asyncio<0.11.0",
         "pytest-cov",

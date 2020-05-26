@@ -1,5 +1,6 @@
 import asyncio
 from functools import wraps
+import json
 
 import typer
 
@@ -58,5 +59,6 @@ async def info(filepath: str):
 
 @app.command()
 @coro
-async def tms(filepath: str):
-    typer.echo("this isn't done yet")
+async def create_tms(filepath: str):
+    async with COGReader(filepath) as cog:
+        typer.echo(json.dumps(cog.create_tile_matrix_set(), indent=1))

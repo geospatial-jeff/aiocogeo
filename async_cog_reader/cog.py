@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from functools import partial
 import math
 from typing import List, Optional
+from urllib.parse import urljoin
+import uuid
 
 from aiocache import cached, Cache
 import affine
@@ -299,3 +301,26 @@ class COGReader:
         ).astype(ifd.dtype)
 
         return resized
+
+    def create_tile_matrix_set(self, identifier: str = None):
+        matrices = []
+        for idx, ifd in enumerate(self.ifds):
+            gt = self.geotransform(idx)
+            matrix = {
+                "identifier": str(len(self.ifds) - idx - 1),
+                "topLeftCorner": [gt.c, gt.f],
+                "tileWidth": ifd.TileWidth.value,
+                "tileHeight": ifd.TileHeight.value,
+                "matrixWidth": ifd.tile_count[0],
+                "matrixHeight": ifd.tile_count[1],
+                "scaleDenominator": gt.a / 0.28e-3,
+            }
+            matrices.append(matrix)
+
+        tms = {
+            "title": f"Tile matrix for {self.filepath}",
+            "identifier": identifier or str(uuid.uuid4()),
+            "supportedCRS": urljoin(f"http://www.opengis.net", f"/def/crs/EPSG/0/{self.epsg}"),
+            "tileMatrix": list(reversed(matrices))
+        }
+        return tms
