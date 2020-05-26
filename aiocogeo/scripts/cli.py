@@ -77,7 +77,7 @@ async def info(filepath: str = typer.Argument(..., file_okay=True)):
 
 
 @app.command(
-    short_help="Create tile matrix set.",
+    short_help="Create OGC TileMatrixSet.",
     help="Create OGC TileMatrixSet representation of the COG where each IFD is a unique tile matrix.",
     no_args_is_help=True
 )
