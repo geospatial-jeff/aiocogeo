@@ -8,10 +8,8 @@ from .config import INGESTED_BYTES_AT_OPEN
 from .constants import TIFF_TAGS
 from .filesystems import Filesystem
 
-# TODO: Move this somewhere more sensible
-logging.basicConfig()
+
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.ERROR)
 
 
 @dataclass
