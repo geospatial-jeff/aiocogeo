@@ -62,7 +62,7 @@ class Filesystem(abc.ABC):
 @dataclass
 class HttpFilesystem(Filesystem):
 
-    async def range_request(self, start, offset):
+    async def range_request(self, start: int, offset: int) -> bytes:
         range_header = {"Range": f"bytes={start}-{start + offset}"}
         async with self.session.get(self.filepath, headers=range_header) as cog:
             data = await cog.content.read()
@@ -70,7 +70,7 @@ class HttpFilesystem(Filesystem):
             self._total_requests += 1
         return data
 
-    async def close(self):
+    async def close(self) -> None:
         await self.session.close()
 
     async def __aenter__(self):
@@ -81,13 +81,13 @@ class HttpFilesystem(Filesystem):
 @dataclass
 class LocalFilesystem(Filesystem):
 
-    async def range_request(self, start, offset):
+    async def range_request(self, start: int, offset: int) -> bytes:
         await self.file.seek(start)
         self._total_bytes_requested += (offset - start)
         self._total_requests += 1
         return await self.file.read(offset+1)
 
-    async def close(self):
+    async def close(self) -> None:
         await self.file.close()
 
     async def __aenter__(self):

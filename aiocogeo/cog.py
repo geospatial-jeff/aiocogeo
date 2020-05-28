@@ -2,7 +2,7 @@ import asyncio
 from dataclasses import dataclass, field
 from functools import partial
 import math
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import urljoin
 import uuid
 
@@ -36,7 +36,7 @@ class COGReader:
             if version == 42:
                 first_ifd = await file_reader.read(4, cast_to_int=True)
                 file_reader.seek(first_ifd)
-                await self.read_header()
+                await self._read_header()
             elif version == 43:
                 raise NotImplementedError("BigTiff is not yet supported")
             else:
@@ -51,7 +51,7 @@ class COGReader:
             yield ifd
 
     @property
-    def profile(self):
+    def profile(self) -> Dict[str, Any]:
         # TODO: Support nodata value
         return {
             "driver": "GTiff",
@@ -70,7 +70,7 @@ class COGReader:
         }
 
     @property
-    def epsg(self):
+    def epsg(self) -> int:
         ifd = self.ifds[0]
         for idx in range(0, len(ifd.GeoKeyDirectoryTag), 4):
             # 2048 is geographic crs
@@ -79,7 +79,7 @@ class COGReader:
                 return ifd.GeoKeyDirectoryTag[idx + 3]
 
     @property
-    def bounds(self):
+    def bounds(self) -> Tuple[float, float, float, float]:
         gt = self.geotransform()
         tlx = gt.c
         tly = gt.f
@@ -88,14 +88,14 @@ class COGReader:
         return (tlx, bry, brx, tly)
 
     @property
-    def overviews(self):
+    def overviews(self) -> List[int]:
         return [2 ** (ifd + 1) for ifd in range(len(self.ifds) - 1)]
 
     @property
-    def is_masked(self):
+    def is_masked(self) -> bool:
         return True if self.mask_ifds else False
 
-    async def read_header(self):
+    async def _read_header(self) -> None:
         next_ifd_offset = 1
         while next_ifd_offset != 0:
             ifd = await IFD.read(self._file_reader)
@@ -111,7 +111,7 @@ class COGReader:
             except IndexError:
                 self.ifds.append(ifd)
 
-    def geotransform(self, ovr_level: int = 0):
+    def geotransform(self, ovr_level: int = 0) -> affine.Affine:
         # Calculate overview for source image
         gt = affine.Affine(
             self.ifds[0].ModelPixelScaleTag[0],
@@ -131,7 +131,7 @@ class COGReader:
             )
         return gt
 
-    def _get_overview_level(self, bounds, width, height):
+    def _get_overview_level(self, bounds: Tuple[float, float, float, float], width: int, height: int) -> int:
         """
         https://github.com/cogeotiff/rio-tiler/blob/v2/rio_tiler/utils.py#L79-L135
         """
@@ -164,7 +164,7 @@ class COGReader:
         # Cache key comes from filepath and x/y/z coordinates of image tile
         key_builder=lambda fn,*args,**kwargs: f"{args[0].filepath}-{args[1]}-{args[2]}-{args[3]}"
     )
-    async def get_tile(self, x: int, y: int, z: int) -> bytes:
+    async def get_tile(self, x: int, y: int, z: int) -> np.ndarray:
         """
         https://github.com/mapbox/COGDumper/blob/master/cogdumper/cog_tiles.py#L337-L365
         """
@@ -200,7 +200,7 @@ class COGReader:
 
         return decoded
 
-    def _calculate_image_tiles(self, bounds, ovr_level):
+    def _calculate_image_tiles(self, bounds: Tuple[float, float, float, float], ovr_level: int) -> Dict[str, Any]:
         geotransform = self.geotransform(ovr_level)
         invgt = ~geotransform
         tile_width = self.ifds[ovr_level].TileWidth.value
@@ -244,7 +244,7 @@ class COGReader:
         }
 
     @staticmethod
-    def stitch_image_tile(fut, fused_arr, idx, idy, tile_width, tile_height):
+    def stitch_image_tile(fut: asyncio.Future, fused_arr: np.ndarray, idx: int, idy: int, tile_width: int, tile_height: int) -> None:
         img_arr = fut.result()
         fused_arr[
             :,
@@ -252,7 +252,7 @@ class COGReader:
             idx * tile_width : (idx + 1) * tile_width
         ] = img_arr
 
-    async def read(self, bounds, shape):
+    async def read(self, bounds: Tuple[float, float, float, float], shape: Tuple[int, int]) -> Union[np.ndarray, np.ma.masked_array]:
         # Determine which tiles intersect the request bounds
         ovr_level = self._get_overview_level(bounds, shape[1], shape[0])
         ifd = self.ifds[ovr_level]
@@ -302,7 +302,7 @@ class COGReader:
 
         return resized
 
-    def create_tile_matrix_set(self, identifier: str = None):
+    def create_tile_matrix_set(self, identifier: str = None) -> Dict[str, Any]:
         matrices = []
         for idx, ifd in enumerate(self.ifds):
             gt = self.geotransform(idx)
