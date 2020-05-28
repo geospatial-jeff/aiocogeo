@@ -6,7 +6,7 @@ import aioboto3
 import aiofiles
 import aiohttp
 
-from .constants import HEADER_OFFSET
+from .config import INGESTED_BYTES_AT_OPEN
 
 @dataclass
 class Filesystem(abc.ABC):
@@ -43,7 +43,7 @@ class Filesystem(abc.ABC):
 
     async def read(self, offset: int, cast_to_int: bool = False):
         if self._offset + offset > len(self.data):
-            self.data += await self.range_request(len(self.data), HEADER_OFFSET)
+            self.data += await self.range_request(len(self.data), INGESTED_BYTES_AT_OPEN)
         data = self.data[self._offset : self._offset + offset]
         self.incr(offset)
         order = "little" if self._endian == "<" else "big"

@@ -1,7 +1,5 @@
 # TODO: Add more compressions
 
-HEADER_OFFSET = 16384
-
 WEB_MERCATOR_EPSG = 3857
 
 COMPRESSIONS = {
