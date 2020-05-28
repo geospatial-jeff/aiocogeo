@@ -125,6 +125,11 @@ async with COGReader("https://async-cog-reader-test-data.s3.amazonaws.com/naip_i
   <img src="https://async-cog-reader-test-data.s3.amazonaws.com/readme/mask.jpg" width="300" /> 
 </p>
 
+### Configuration
+Configuration options are exposed through environment variables:
+- **INGESTED_BYTES_AT_OPEN** - defines the number of bytes in the first GET request at file opening (defaults to 16KB)
+
+
 ## CLI
 ```
 $ aiocogeo --help
