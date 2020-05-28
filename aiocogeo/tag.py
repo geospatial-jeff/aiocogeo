@@ -4,7 +4,8 @@ import struct
 
 from typing import Any, Tuple, Union
 
-from .constants import TIFF_TAGS, HEADER_OFFSET
+from .config import INGESTED_BYTES_AT_OPEN
+from .constants import TIFF_TAGS
 
 # TODO: Move this somewhere more sensible
 logging.basicConfig()
@@ -78,7 +79,7 @@ class Tag:
         else:
             value_offset = await reader.read(4, cast_to_int=True)
             end_of_tag = reader.tell()
-            if value_offset + length > HEADER_OFFSET:
+            if value_offset + length > INGESTED_BYTES_AT_OPEN:
                 data = await reader.range_request(value_offset, length - 1)
             else:
                 reader.seek(value_offset)
