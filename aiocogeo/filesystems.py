@@ -35,13 +35,20 @@ class Filesystem(abc.ABC):
 
     @abc.abstractmethod
     async def range_request(self, start: int, offset: int) -> bytes:
+        """Perform a range request"""
         ...
 
     @abc.abstractmethod
     async def close(self) -> None:
+        """
+        Close any resources created in ``__aexit__``, allows extending ``Filesystem`` context managers past their scope
+        """
         ...
 
     async def read(self, offset: int, cast_to_int: bool = False):
+        """
+        Read from the current offset (self._offset) to the specified offset and optionall cast the result to int
+        """
         if self._offset + offset > len(self.data):
             self.data += await self.range_request(len(self.data), INGESTED_BYTES_AT_OPEN)
         data = self.data[self._offset : self._offset + offset]
@@ -50,12 +57,15 @@ class Filesystem(abc.ABC):
         return int.from_bytes(data, order) if cast_to_int else data
 
     def incr(self, offset: int) -> None:
+        """Increment offset"""
         self._offset += offset
 
     def seek(self, offset: int) -> None:
+        """Seek to the specified offset (setter for ``self._offset``)"""
         self._offset = offset
 
     def tell(self) -> int:
+        """Return the current offset (getter for ``self._offset``)"""
         return self._offset
 
 
