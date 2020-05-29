@@ -24,6 +24,7 @@ class Filesystem(abc.ABC):
 
     @classmethod
     def create_from_filepath(cls, filepath: str) -> "Filesystem":
+        """Instantiate the appropriate filesystem based on filepath scheme"""
         splits = urlsplit(filepath)
         if splits.scheme in {"http", "https"}:
             return HttpFilesystem(filepath)

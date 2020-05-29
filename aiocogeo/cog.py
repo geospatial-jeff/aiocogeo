@@ -28,6 +28,7 @@ class COGReader:
 
 
     async def __aenter__(self):
+        """Open the image and read the header"""
         async with Filesystem.create_from_filepath(self.filepath) as file_reader:
             self._file_reader = file_reader
             if (await file_reader.read(2)) == b"MM":
