@@ -169,6 +169,29 @@ async def test_cog_read(infile, create_cog_reader):
             assert pytest.approx(np.mean(tile), 2) == np.mean(rio_tile_arr)
             assert pytest.approx(np.max(tile), 2) == np.max(rio_tile_arr)
 
+from aiocogeo import config
+
+@pytest.mark.asyncio
+async def test_cog_read_merge_range_requests(create_cog_reader, monkeypatch):
+    # Do a request without merged range requests
+    async with create_cog_reader("https://async-cog-reader-test-data.s3.amazonaws.com/lzw_cog.tif") as cog:
+        tile_data = await cog.read(bounds=(368461,3770591,368796,3770921), shape=(512,512))
+        request_count = cog._file_reader._total_requests
+        bytes_requested = cog._file_reader._total_bytes_requested
+
+    # Do a request with merged range requests
+    monkeypatch.setattr(config, "HTTP_MERGE_CONSECUTIVE_RANGES", "TRUE")
+    async with create_cog_reader("https://async-cog-reader-test-data.s3.amazonaws.com/lzw_cog.tif") as cog:
+        tile_data_merged = await cog.read(bounds=(368461,3770591,368796,3770921), shape=(512,512))
+        merged_request_count = cog._file_reader._total_requests
+        merged_bytes_requested = cog._file_reader._total_bytes_requested
+
+    # Confirm we got the same tile with fewer requests
+    assert merged_request_count < request_count
+    assert bytes_requested == merged_bytes_requested
+    assert tile_data.all() == tile_data_merged.all()
+    assert tile_data.shape == tile_data_merged.shape
+
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(

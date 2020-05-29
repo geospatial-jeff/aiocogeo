@@ -11,7 +11,7 @@ import affine
 import numpy as np
 from skimage.transform import resize
 
-from .config import HTTP_MERGE_CONSECUTIVE_RANGES
+from . import config
 from .constants import PHOTOMETRIC
 from .errors import InvalidTiffError, TileNotFoundError
 from .filesystems import Filesystem
@@ -311,7 +311,7 @@ class COGReader:
             )
         ).astype(ifd.dtype)
 
-        if HTTP_MERGE_CONSECUTIVE_RANGES == "TRUE":
+        if config.HTTP_MERGE_CONSECUTIVE_RANGES == "TRUE":
             # Aggregate ranges
             ranges = []
             for idx, xtile in enumerate(range(xmin, xmax + 1)):
