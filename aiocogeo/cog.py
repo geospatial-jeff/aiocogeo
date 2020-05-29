@@ -213,19 +213,17 @@ class COGReader:
         return decoded
 
     @staticmethod
-    def merge_range_requests(ranges: List[Tuple[int, int, int, int]]) -> Tuple[Tuple[int, int], List[Tuple[int, int]]]:
+    def merge_range_requests(ranges: List[Tuple[int, int, int, int]]) -> Tuple[Tuple[int, int], Tuple[Tuple[int, int, int, int]]]:
         """
         Helper function to merge consecutive range requests while keeping track of the initial ranges.  Returns an
-        iterator which yields a tuple, where the first item is a tuple with the start/end of a merged request and the
-        second item is the list of tuples where each tuple contains the original ranges and tile indices.
+        iterator which yields a tuple of tuples, where the first is a tuple with the start/end of a merged request and
+        the second is another tuple of tuples where each tuple contains the original ranges and tile indices.
 
         For example, if we have two ranges A->B and B->C representing tiles in the top row of a COG, this
         method will yield:
 
-            ((A, C), [(A,B,0,0),(B,C,1,0)]
+            ((A, C), ((A, B, 0, 0), (B, C, 1, 0)))
 
-        We must keep track of the original ranges so we can fetch the bytes for each tile by indexing into the bytes
-        returned by the merged range request, and tile indices are required for mosaicing the individual tiles.
         """
         # Create our start position (start, end)
         saved = [ranges[0][0], ranges[0][0] + ranges[0][1]]
