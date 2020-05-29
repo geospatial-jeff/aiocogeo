@@ -4,12 +4,13 @@ import struct
 
 from typing import Any, Optional, Tuple, Union
 
-from .config import INGESTED_BYTES_AT_OPEN
+from .config import INGESTED_BYTES_AT_OPEN, LOG_LEVEL
 from .constants import TIFF_TAGS
 from .filesystems import Filesystem
 
 
 logger = logging.getLogger(__name__)
+logger.setLevel(LOG_LEVEL)
 
 
 @dataclass
