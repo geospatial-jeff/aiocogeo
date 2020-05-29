@@ -18,20 +18,6 @@ from .filesystems import Filesystem
 from .ifd import IFD
 
 
-def merge(times):
-    saved = list(times[0])[:2]
-    indices = []
-    for st, en, xtile, ytile, idx, idy in sorted(times):
-        if st <= saved[1]:
-            saved[1] = max(saved[1], en)
-            indices.append((xtile, ytile, idx, idy))
-        else:
-            yield tuple(saved), tuple(indices)
-            indices = [(xtile, ytile, idx, idy)]
-            saved[0] = st
-            saved[1] = en
-    yield tuple(saved), tuple(indices)
-
 @dataclass
 class COGReader:
     filepath: str
@@ -226,6 +212,38 @@ class COGReader:
 
         return decoded
 
+    @staticmethod
+    def merge_range_requests(ranges: List[Tuple[int, int, int, int]]) -> Tuple[Tuple[int, int], List[Tuple[int, int]]]:
+        """
+        Helper function to merge consecutive range requests while keeping track of the initial ranges.  Returns an
+        iterator which yields a tuple, where the first item is a tuple with the start/end of a merged request and the
+        second item is the list of tuples where each tuple contains the original ranges and tile indices.
+
+        We must keep track of the original ranges so we can fetch the bytes for each tile by indexing into the bytes
+        returned by the merged range request, and tile indices are required for mosaicing the individual tiles.
+        """
+        # Create our start position (start, end)
+        saved = [ranges[0][0], ranges[0][0] + ranges[0][1]]
+        indices = []
+        for offset, byte_count, idx, idy in sorted(ranges):
+            # Get the next range
+            start = offset
+            end = offset + byte_count
+
+            # Merge ranges
+            if start <= saved[1]:
+                saved[1] = max(saved[1], end)
+                # Keep track of initial range
+                indices.append((offset, byte_count, idx, idy))
+            else:
+                yield tuple(saved), tuple(indices)
+                # Keep track of initial range
+                indices = [(offset, byte_count, idx, idy)]
+                saved[0] = start
+                saved[1] = end
+        yield tuple(saved), tuple(indices)
+
+
     def _calculate_image_tiles(self, bounds: Tuple[float, float, float, float], ovr_level: int) -> Dict[str, Any]:
         """
         Internal method to calculate which images tiles need to be requested for a partial read.  Also returns metadata
@@ -274,8 +292,11 @@ class COGReader:
         }
 
     @staticmethod
-    def _stitch_image_tile(tile_arr, fused_arr: np.ndarray, idx: int, idy: int, tile_width: int, tile_height: int) -> None:
-        """Internal asyncio callback used to mosaic each image tile into a larger array."""
+    def _stitch_image_tile(tile_arr: np.ndarray, fused_arr: np.ndarray, idx: int, idy: int, tile_width: int, tile_height: int) -> None:
+        """
+        Helper method to mosaic a tile into a larger numpy array based on its position with respect to the larger
+        array
+        """
         fused_arr[
             :,
             idy * tile_height : (idy + 1) * tile_height,
@@ -283,7 +304,34 @@ class COGReader:
         ] = tile_arr
 
 
+    def _stitch_merged_image_tile(
+        self,
+        fut: asyncio.Future,
+        fused: np.ndarray,
+        offset: int,
+        range_indices: Tuple[int, int, int, int],
+        tile_width: int,
+        tile_height: int,
+        ovr_level: int
+    ) -> None:
+        """Internal asyncio callback to mosaic merged ranged requests into a larger array"""
+        img_bytes = fut.result()
+        # Compression is applied to each block, so we need to "unmerge" the blocks after performing the merged range
+        # request so we can decompress each block independently
+        # TODO: Each tile is discrete so we should be able to do this in parallel for a minor speed up
+        for (tile_offset, byte_count, idx, idy) in range_indices:
+            # Find the start/end of the tile with respect to the merged request
+            tile_start = tile_offset - offset
+            tile_end = tile_start + byte_count
+            # Extract the tile
+            tile_bytes = img_bytes[tile_start:tile_end]
+            # Decompress and mosaic
+            decoded = self.ifds[ovr_level]._decompress(tile_bytes)
+            self._stitch_image_tile(decoded, fused, idx, idy, tile_width, tile_height)
+
+
     def _stitch_image_tile_callback(self, fut: asyncio.Future, *args, **kwargs):
+        """Internal asyncio callback to mosaic an image tile into a larger array."""
         tile_arr = fut.result()
         self._stitch_image_tile(tile_arr, *args, **kwargs)
 
@@ -318,27 +366,25 @@ class COGReader:
                 for idy, ytile in enumerate(range(ymin, ymax + 1)):
                     offset = ifd.TileOffsets[(ytile * ifd.tile_count[0]) + xtile]
                     byte_count = ifd.TileByteCounts[(ytile * ifd.tile_count[0]) + xtile]
-                    ranges.append((offset, offset + byte_count, xtile, ytile, idx, idy))
+                    ranges.append((offset, byte_count, idx, idy))
 
-            # Merge range requests, iterate through each merged range
-            for (offsets, indices) in merge(ranges):
-
-                # Request the range
-                resp_bytes = await self._file_reader.range_request(offsets[0], offsets[1] - offsets[0] - 1)
-
-                # Decode each tile
-                for (xtile, ytile, idx, idy) in indices:
-                    # Calculate start/end of with respect to the merged range
-                    offset = ifd.TileOffsets[(ytile * ifd.tile_count[0]) + xtile]
-                    byte_count = ifd.TileByteCounts[(ytile * ifd.tile_count[0]) + xtile]
-                    tile_start = offset - offsets[0]
-                    tile_end = tile_start + byte_count
-                    # Extract the tile from the merged range
-                    tile_bytes = resp_bytes[tile_start:tile_end]
-                    # Decompress and mosaic
-                    decoded = ifd._decompress(tile_bytes)
-                    self._stitch_image_tile(decoded, fused, idx, idy, tile_width, tile_height)
-
+            # Merge range requests, iterate through each merged request
+            for (offsets, indices) in self.merge_range_requests(ranges):
+                get_tile_task = asyncio.create_task(
+                    self._file_reader.range_request(offsets[0], offsets[1] - offsets[0] - 1)
+                )
+                get_tile_task.add_done_callback(
+                    partial(
+                        self._stitch_merged_image_tile,
+                        fused=fused,
+                        offset=offsets[0],
+                        range_indices=indices,
+                        tile_width=tile_width,
+                        tile_height=tile_height,
+                        ovr_level=ovr_level
+                    )
+                )
+                tile_tasks.append(get_tile_task)
         else:
             for idx, xtile in enumerate(range(xmin, xmax + 1)):
                 for idy, ytile in enumerate(range(ymin, ymax + 1)):
@@ -356,7 +402,9 @@ class COGReader:
                         )
                     )
                     tile_tasks.append(get_tile_task)
-            await asyncio.gather(*tile_tasks)
+
+        # Request tiles
+        await asyncio.gather(*tile_tasks)
 
         # Clip to request bounds
         clipped = fused[
