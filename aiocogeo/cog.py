@@ -11,11 +11,26 @@ import affine
 import numpy as np
 from skimage.transform import resize
 
+from .config import HTTP_MERGE_CONSECUTIVE_RANGES
 from .constants import PHOTOMETRIC
 from .errors import InvalidTiffError, TileNotFoundError
 from .filesystems import Filesystem
 from .ifd import IFD
 
+
+def merge(times):
+    saved = list(times[0])[:2]
+    indices = []
+    for st, en, xtile, ytile, idx, idy in sorted(times):
+        if st <= saved[1]:
+            saved[1] = max(saved[1], en)
+            indices.append((xtile, ytile, idx, idy))
+        else:
+            yield tuple(saved), tuple(indices)
+            indices = [(xtile, ytile, idx, idy)]
+            saved[0] = st
+            saved[1] = en
+    yield tuple(saved), tuple(indices)
 
 @dataclass
 class COGReader:
@@ -259,14 +274,19 @@ class COGReader:
         }
 
     @staticmethod
-    def _stitch_image_tile(fut: asyncio.Future, fused_arr: np.ndarray, idx: int, idy: int, tile_width: int, tile_height: int) -> None:
+    def _stitch_image_tile(tile_arr, fused_arr: np.ndarray, idx: int, idy: int, tile_width: int, tile_height: int) -> None:
         """Internal asyncio callback used to mosaic each image tile into a larger array."""
-        img_arr = fut.result()
         fused_arr[
             :,
             idy * tile_height : (idy + 1) * tile_height,
             idx * tile_width : (idx + 1) * tile_width
-        ] = img_arr
+        ] = tile_arr
+
+
+    def _stitch_image_tile_callback(self, fut: asyncio.Future, *args, **kwargs):
+        tile_arr = fut.result()
+        self._stitch_image_tile(tile_arr, *args, **kwargs)
+
 
     async def read(self, bounds: Tuple[float, float, float, float], shape: Tuple[int, int]) -> Union[np.ndarray, np.ma.masked_array]:
         """
@@ -290,23 +310,53 @@ class COGReader:
                 (xmax + 1 - xmin) * tile_width,
             )
         ).astype(ifd.dtype)
-        for idx, xtile in enumerate(range(xmin, xmax + 1)):
-            for idy, ytile in enumerate(range(ymin, ymax + 1)):
-                get_tile_task = asyncio.create_task(
-                    self.get_tile(xtile, ytile, ovr_level)
-                )
-                get_tile_task.add_done_callback(
-                    partial(
-                        self._stitch_image_tile,
-                        fused_arr=fused,
-                        idx=idx,
-                        idy=idy,
-                        tile_width=tile_width,
-                        tile_height=tile_height,
+
+        if HTTP_MERGE_CONSECUTIVE_RANGES == "TRUE":
+            # Aggregate ranges
+            ranges = []
+            for idx, xtile in enumerate(range(xmin, xmax + 1)):
+                for idy, ytile in enumerate(range(ymin, ymax + 1)):
+                    offset = ifd.TileOffsets[(ytile * ifd.tile_count[0]) + xtile]
+                    byte_count = ifd.TileByteCounts[(ytile * ifd.tile_count[0]) + xtile]
+                    ranges.append((offset, offset + byte_count, xtile, ytile, idx, idy))
+
+            # Merge range requests, iterate through each merged range
+            for (offsets, indices) in merge(ranges):
+
+                # Request the range
+                resp_bytes = await self._file_reader.range_request(offsets[0], offsets[1] - offsets[0] - 1)
+
+                # Decode each tile
+                for (xtile, ytile, idx, idy) in indices:
+                    # Calculate start/end of with respect to the merged range
+                    offset = ifd.TileOffsets[(ytile * ifd.tile_count[0]) + xtile]
+                    byte_count = ifd.TileByteCounts[(ytile * ifd.tile_count[0]) + xtile]
+                    tile_start = offset - offsets[0]
+                    tile_end = tile_start + byte_count
+                    # Extract the tile from the merged range
+                    tile_bytes = resp_bytes[tile_start:tile_end]
+                    # Decompress and mosaic
+                    decoded = ifd._decompress(tile_bytes)
+                    self._stitch_image_tile(decoded, fused, idx, idy, tile_width, tile_height)
+
+        else:
+            for idx, xtile in enumerate(range(xmin, xmax + 1)):
+                for idy, ytile in enumerate(range(ymin, ymax + 1)):
+                    get_tile_task = asyncio.create_task(
+                        self.get_tile(xtile, ytile, ovr_level)
                     )
-                )
-                tile_tasks.append(get_tile_task)
-        await asyncio.gather(*tile_tasks)
+                    get_tile_task.add_done_callback(
+                        partial(
+                            self._stitch_image_tile_callback,
+                            fused_arr=fused,
+                            idx=idx,
+                            idy=idy,
+                            tile_width=tile_width,
+                            tile_height=tile_height,
+                        )
+                    )
+                    tile_tasks.append(get_tile_task)
+            await asyncio.gather(*tile_tasks)
 
         # Clip to request bounds
         clipped = fused[
