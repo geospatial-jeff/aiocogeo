@@ -2,15 +2,15 @@ from dataclasses import dataclass
 import logging
 import struct
 
-from typing import Any, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 
-from .config import INGESTED_BYTES_AT_OPEN
+from .config import INGESTED_BYTES_AT_OPEN, LOG_LEVEL
 from .constants import TIFF_TAGS
+from .filesystems import Filesystem
 
-# TODO: Move this somewhere more sensible
-logging.basicConfig()
+
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.ERROR)
+logger.setLevel(LOG_LEVEL)
 
 
 @dataclass
@@ -51,7 +51,8 @@ class Tag:
         return self.count
 
     @classmethod
-    async def read(cls, reader):
+    async def read(cls, reader: Filesystem) -> Optional["Tag"]:
+        """Read a TIFF Tag"""
         # 0-2 bytes of tag are tag name
         code = await reader.read(2, cast_to_int=True)
         if code not in TIFF_TAGS:

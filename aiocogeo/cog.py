@@ -2,7 +2,7 @@ import asyncio
 from dataclasses import dataclass, field
 from functools import partial
 import math
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import urljoin
 import uuid
 
@@ -28,6 +28,7 @@ class COGReader:
 
 
     async def __aenter__(self):
+        """Open the image and read the header"""
         async with Filesystem.create_from_filepath(self.filepath) as file_reader:
             self._file_reader = file_reader
             if (await file_reader.read(2)) == b"MM":
@@ -36,7 +37,7 @@ class COGReader:
             if version == 42:
                 first_ifd = await file_reader.read(4, cast_to_int=True)
                 file_reader.seek(first_ifd)
-                await self.read_header()
+                await self._read_header()
             elif version == 43:
                 raise NotImplementedError("BigTiff is not yet supported")
             else:
@@ -44,14 +45,16 @@ class COGReader:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self._file_reader.close()
+        await self._file_reader._close()
 
     def __iter__(self):
+        """Iterate through image IFDs"""
         for ifd in self.ifds:
             yield ifd
 
     @property
-    def profile(self):
+    def profile(self) -> Dict[str, Any]:
+        """Return a rasterio-style image profile"""
         # TODO: Support nodata value
         return {
             "driver": "GTiff",
@@ -70,7 +73,8 @@ class COGReader:
         }
 
     @property
-    def epsg(self):
+    def epsg(self) -> int:
+        """Return the EPSG code representing the crs of the image"""
         ifd = self.ifds[0]
         for idx in range(0, len(ifd.GeoKeyDirectoryTag), 4):
             # 2048 is geographic crs
@@ -79,7 +83,8 @@ class COGReader:
                 return ifd.GeoKeyDirectoryTag[idx + 3]
 
     @property
-    def bounds(self):
+    def bounds(self) -> Tuple[float, float, float, float]:
+        """Return the bounds of the image in native crs"""
         gt = self.geotransform()
         tlx = gt.c
         tly = gt.f
@@ -88,14 +93,17 @@ class COGReader:
         return (tlx, bry, brx, tly)
 
     @property
-    def overviews(self):
+    def overviews(self) -> List[int]:
+        """Return decimation factor for each overview (2**zoom)"""
         return [2 ** (ifd + 1) for ifd in range(len(self.ifds) - 1)]
 
     @property
-    def is_masked(self):
+    def is_masked(self) -> bool:
+        """Check if the image has an internal mask"""
         return True if self.mask_ifds else False
 
-    async def read_header(self):
+    async def _read_header(self) -> None:
+        """Internal method to read image header and parse into IFDs and Tags"""
         next_ifd_offset = 1
         while next_ifd_offset != 0:
             ifd = await IFD.read(self._file_reader)
@@ -111,7 +119,8 @@ class COGReader:
             except IndexError:
                 self.ifds.append(ifd)
 
-    def geotransform(self, ovr_level: int = 0):
+    def geotransform(self, ovr_level: int = 0) -> affine.Affine:
+        """Return the geotransform of the image at a specific overview level (defaults to native resolution)"""
         # Calculate overview for source image
         gt = affine.Affine(
             self.ifds[0].ModelPixelScaleTag[0],
@@ -131,8 +140,9 @@ class COGReader:
             )
         return gt
 
-    def _get_overview_level(self, bounds, width, height):
+    def _get_overview_level(self, bounds: Tuple[float, float, float, float], width: int, height: int) -> int:
         """
+        Calculate appropriate overview level given request bounds and shape (width + height).  Based on rio-tiler:
         https://github.com/cogeotiff/rio-tiler/blob/v2/rio_tiler/utils.py#L79-L135
         """
         src_res = self.geotransform().a
@@ -164,8 +174,9 @@ class COGReader:
         # Cache key comes from filepath and x/y/z coordinates of image tile
         key_builder=lambda fn,*args,**kwargs: f"{args[0].filepath}-{args[1]}-{args[2]}-{args[3]}"
     )
-    async def get_tile(self, x: int, y: int, z: int) -> bytes:
+    async def get_tile(self, x: int, y: int, z: int) -> np.ndarray:
         """
+        Request an internal image tile at the specified row (x), column (y), and overview (z).  Based on COGDumper:
         https://github.com/mapbox/COGDumper/blob/master/cogdumper/cog_tiles.py#L337-L365
         """
         futures = []
@@ -193,14 +204,18 @@ class COGReader:
 
         img_bytes = await asyncio.gather(*futures)
 
-        decoded = ifd.decompress(img_bytes[0])
+        decoded = ifd._decompress(img_bytes[0])
         if self.is_masked:
-            mask = mask_ifd.decompress_mask(img_bytes[1])
+            mask = mask_ifd._decompress_mask(img_bytes[1])
             decoded = np.ma.masked_where(np.broadcast_to(mask, decoded.shape)==0, decoded)
 
         return decoded
 
-    def _calculate_image_tiles(self, bounds, ovr_level):
+    def _calculate_image_tiles(self, bounds: Tuple[float, float, float, float], ovr_level: int) -> Dict[str, Any]:
+        """
+        Internal method to calculate which images tiles need to be requested for a partial read.  Also returns metadata
+        about those image tiles.
+        """
         geotransform = self.geotransform(ovr_level)
         invgt = ~geotransform
         tile_width = self.ifds[ovr_level].TileWidth.value
@@ -244,7 +259,8 @@ class COGReader:
         }
 
     @staticmethod
-    def stitch_image_tile(fut, fused_arr, idx, idy, tile_width, tile_height):
+    def _stitch_image_tile(fut: asyncio.Future, fused_arr: np.ndarray, idx: int, idy: int, tile_width: int, tile_height: int) -> None:
+        """Internal asyncio callback used to mosaic each image tile into a larger array."""
         img_arr = fut.result()
         fused_arr[
             :,
@@ -252,7 +268,11 @@ class COGReader:
             idx * tile_width : (idx + 1) * tile_width
         ] = img_arr
 
-    async def read(self, bounds, shape):
+    async def read(self, bounds: Tuple[float, float, float, float], shape: Tuple[int, int]) -> Union[np.ndarray, np.ma.masked_array]:
+        """
+        Perform a partial read.  All pixels within the specified bounding box are read from the image and the array is
+        resampled to match the desired shape.
+        """
         # Determine which tiles intersect the request bounds
         ovr_level = self._get_overview_level(bounds, shape[1], shape[0])
         ifd = self.ifds[ovr_level]
@@ -277,7 +297,7 @@ class COGReader:
                 )
                 get_tile_task.add_done_callback(
                     partial(
-                        self.stitch_image_tile,
+                        self._stitch_image_tile,
                         fused_arr=fused,
                         idx=idx,
                         idy=idy,
@@ -302,7 +322,8 @@ class COGReader:
 
         return resized
 
-    def create_tile_matrix_set(self, identifier: str = None):
+    def create_tile_matrix_set(self, identifier: str = None) -> Dict[str, Any]:
+        """Create an OGC TileMatrixSet where each TileMatrix corresponds to an overview"""
         matrices = []
         for idx, ifd in enumerate(self.ifds):
             gt = self.geotransform(idx)

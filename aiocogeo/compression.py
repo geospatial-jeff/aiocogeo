@@ -22,19 +22,23 @@ class Compression(metaclass=abc.ABCMeta):
     @property
     @abc.abstractmethod
     def bands(self) -> int:
+        """Return the number of image bands"""
         ...
 
     @property
     @abc.abstractmethod
     def compression(self) -> str:
+        """Return the compression of the IFD"""
         ...
 
     @property
     @abc.abstractmethod
     def dtype(self) -> np.dtype:
+        """Return the data type of the IFD"""
         ...
 
-    def decompress(self, tile):
+    def _decompress(self, tile: bytes) -> np.ndarray:
+        """Internal method to convert image bytes to numpy array with decompression applied"""
         try:
             return getattr(self, f"_{self.compression}")(tile)
         except AttributeError as e:
@@ -42,24 +46,27 @@ class Compression(metaclass=abc.ABCMeta):
                 f"{self.compression} is not currently supported"
             ) from e
 
-    def decompress_mask(self, tile):
+    def _decompress_mask(self, tile: bytes) -> np.ndarray:
+        """Internal method to decompress a binary mask and rescale to uint8"""
         decoded = np.frombuffer(imagecodecs.zlib_decode(tile), np.dtype('uint8'))
         mask = np.unpackbits(decoded).reshape(self.TileHeight.value, self.TileWidth.value) * 255
         return mask
 
-    def _reshape(self, arr):
+    def _reshape(self, arr: np.ndarray) -> np.ndarray:
+        """Internal method to reshape an array to the size expected by the IFD"""
         return arr.reshape(
             self.TileHeight.value,
             self.TileWidth.value,
             self.bands,
         )
 
-    def _unpredict(self, arr):
-        # Unpredict if there is horizontal differencing
+    def _unpredict(self, arr: np.ndarray) -> None:
+        """Internal method to unpredict if there is horizontal differencing"""
         if self.Predictor.value == 2:
             imagecodecs.delta_decode(arr, out=arr, axis=-1)
 
-    def _jpeg(self, tile):
+    def _jpeg(self, tile: bytes) -> np.ndarray:
+        """Internal method to decompress JPEG image bytes and convert to numpy array"""
         jpeg_tables = self.JPEGTables
         jpeg_table_bytes = struct.pack(
             f"{self._file_reader._endian}{jpeg_tables.count}{jpeg_tables.tag_type.format}",
@@ -75,16 +82,19 @@ class Compression(metaclass=abc.ABCMeta):
         decoded = imagecodecs.jpeg_decode(tile)
         return np.rollaxis(decoded, 2, 0)
 
-    def _lzw(self, tile):
+    def _lzw(self, tile: bytes) -> np.ndarray:
+        """Internal method to decompress LZW image bytes and convert to numpy array"""
         decoded = self._reshape(np.frombuffer(imagecodecs.lzw_decode(tile), self.dtype))
         self._unpredict(decoded)
         return np.rollaxis(decoded, 2, 0)
 
-    def _webp(self, tile):
+    def _webp(self, tile: bytes) -> np.ndarray:
+        """Internal method to decompress WEBP image bytes and convert to numpy array"""
         decoded = np.rollaxis(imagecodecs.webp_decode(tile), 2, 0)
         return decoded
 
-    def _deflate(self, tile):
+    def _deflate(self, tile: bytes) -> np.ndarray:
+        """Internal method to decompress DEFLATE image bytes and convert to numpy array"""
         decoded = self._reshape(np.frombuffer(imagecodecs.zlib_decode(tile), self.dtype))
         self._unpredict(decoded)
         return np.rollaxis(decoded, 2, 0)

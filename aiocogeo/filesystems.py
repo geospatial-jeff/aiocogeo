@@ -24,6 +24,7 @@ class Filesystem(abc.ABC):
 
     @classmethod
     def create_from_filepath(cls, filepath: str) -> "Filesystem":
+        """Instantiate the appropriate filesystem based on filepath scheme"""
         splits = urlsplit(filepath)
         if splits.scheme in {"http", "https"}:
             return HttpFilesystem(filepath)
@@ -35,13 +36,20 @@ class Filesystem(abc.ABC):
 
     @abc.abstractmethod
     async def range_request(self, start: int, offset: int) -> bytes:
+        """Perform a range request"""
         ...
 
     @abc.abstractmethod
-    async def close(self) -> None:
+    async def _close(self) -> None:
+        """
+        Close any resources created in ``__aexit__``, allows extending ``Filesystem`` context managers past their scope
+        """
         ...
 
     async def read(self, offset: int, cast_to_int: bool = False):
+        """
+        Read from the current offset (self._offset) to the specified offset and optionall cast the result to int
+        """
         if self._offset + offset > len(self.data):
             self.data += await self.range_request(len(self.data), INGESTED_BYTES_AT_OPEN)
         data = self.data[self._offset : self._offset + offset]
@@ -50,19 +58,22 @@ class Filesystem(abc.ABC):
         return int.from_bytes(data, order) if cast_to_int else data
 
     def incr(self, offset: int) -> None:
+        """Increment offset"""
         self._offset += offset
 
     def seek(self, offset: int) -> None:
+        """Seek to the specified offset (setter for ``self._offset``)"""
         self._offset = offset
 
     def tell(self) -> int:
+        """Return the current offset (getter for ``self._offset``)"""
         return self._offset
 
 
 @dataclass
 class HttpFilesystem(Filesystem):
 
-    async def range_request(self, start, offset):
+    async def range_request(self, start: int, offset: int) -> bytes:
         range_header = {"Range": f"bytes={start}-{start + offset}"}
         async with self.session.get(self.filepath, headers=range_header) as cog:
             data = await cog.content.read()
@@ -70,7 +81,7 @@ class HttpFilesystem(Filesystem):
             self._total_requests += 1
         return data
 
-    async def close(self):
+    async def _close(self) -> None:
         await self.session.close()
 
     async def __aenter__(self):
@@ -81,13 +92,13 @@ class HttpFilesystem(Filesystem):
 @dataclass
 class LocalFilesystem(Filesystem):
 
-    async def range_request(self, start, offset):
+    async def range_request(self, start: int, offset: int) -> bytes:
         await self.file.seek(start)
         self._total_bytes_requested += (offset - start)
         self._total_requests += 1
         return await self.file.read(offset+1)
 
-    async def close(self):
+    async def _close(self) -> None:
         await self.file.close()
 
     async def __aenter__(self):
@@ -105,7 +116,7 @@ class S3Filesystem(Filesystem):
         data = await req['Body'].read()
         return data
 
-    async def close(self) -> None:
+    async def _close(self) -> None:
         await self.resource.__aexit__('', '', '')
 
     async def __aenter__(self):
