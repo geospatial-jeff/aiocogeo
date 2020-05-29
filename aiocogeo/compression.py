@@ -37,7 +37,7 @@ class Compression(metaclass=abc.ABCMeta):
         """Return the data type of the IFD"""
         ...
 
-    def decompress(self, tile: bytes) -> np.ndarray:
+    def _decompress(self, tile: bytes) -> np.ndarray:
         """Internal method to convert image bytes to numpy array with decompression applied"""
         try:
             return getattr(self, f"_{self.compression}")(tile)
@@ -46,7 +46,7 @@ class Compression(metaclass=abc.ABCMeta):
                 f"{self.compression} is not currently supported"
             ) from e
 
-    def decompress_mask(self, tile: bytes) -> np.ndarray:
+    def _decompress_mask(self, tile: bytes) -> np.ndarray:
         """Internal method to decompress a binary mask and rescale to uint8"""
         decoded = np.frombuffer(imagecodecs.zlib_decode(tile), np.dtype('uint8'))
         mask = np.unpackbits(decoded).reshape(self.TileHeight.value, self.TileWidth.value) * 255

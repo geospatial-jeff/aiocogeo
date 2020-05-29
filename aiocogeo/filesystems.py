@@ -39,7 +39,7 @@ class Filesystem(abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def close(self) -> None:
+    async def _close(self) -> None:
         """
         Close any resources created in ``__aexit__``, allows extending ``Filesystem`` context managers past their scope
         """
@@ -80,7 +80,7 @@ class HttpFilesystem(Filesystem):
             self._total_requests += 1
         return data
 
-    async def close(self) -> None:
+    async def _close(self) -> None:
         await self.session.close()
 
     async def __aenter__(self):
@@ -97,7 +97,7 @@ class LocalFilesystem(Filesystem):
         self._total_requests += 1
         return await self.file.read(offset+1)
 
-    async def close(self) -> None:
+    async def _close(self) -> None:
         await self.file.close()
 
     async def __aenter__(self):
@@ -115,7 +115,7 @@ class S3Filesystem(Filesystem):
         data = await req['Body'].read()
         return data
 
-    async def close(self) -> None:
+    async def _close(self) -> None:
         await self.resource.__aexit__('', '', '')
 
     async def __aenter__(self):

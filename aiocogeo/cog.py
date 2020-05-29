@@ -44,7 +44,7 @@ class COGReader:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self._file_reader.close()
+        await self._file_reader._close()
 
     def __iter__(self):
         """Iterate through image IFDs"""
@@ -203,9 +203,9 @@ class COGReader:
 
         img_bytes = await asyncio.gather(*futures)
 
-        decoded = ifd.decompress(img_bytes[0])
+        decoded = ifd._decompress(img_bytes[0])
         if self.is_masked:
-            mask = mask_ifd.decompress_mask(img_bytes[1])
+            mask = mask_ifd._decompress_mask(img_bytes[1])
             decoded = np.ma.masked_where(np.broadcast_to(mask, decoded.shape)==0, decoded)
 
         return decoded
@@ -296,7 +296,7 @@ class COGReader:
                 )
                 get_tile_task.add_done_callback(
                     partial(
-                        self.stitch_image_tile,
+                        self._stitch_image_tile,
                         fused_arr=fused,
                         idx=idx,
                         idy=idy,
