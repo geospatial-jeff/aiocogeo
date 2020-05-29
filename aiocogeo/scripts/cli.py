@@ -26,16 +26,18 @@ def _get_ifd_stats(ifds):
     for idx, ifd in enumerate(ifds):
         tile_sizes = [b / 1000 for b in ifd.TileByteCounts.value]
         mean_tile_size = round(sum(tile_sizes) / len(tile_sizes), 3)
-        ifd_stats.append({
-            'id': idx,
-            'size': (ifd.ImageWidth.value, ifd.ImageHeight.value),
-            'block_size': (ifd.TileWidth.value, ifd.TileHeight.value),
-            'tile_sizes': {
-                'min': min(tile_sizes),
-                'max': max(tile_sizes),
-                'mean': mean_tile_size
+        ifd_stats.append(
+            {
+                "id": idx,
+                "size": (ifd.ImageWidth.value, ifd.ImageHeight.value),
+                "block_size": (ifd.TileWidth.value, ifd.TileHeight.value),
+                "tile_sizes": {
+                    "min": min(tile_sizes),
+                    "max": max(tile_sizes),
+                    "mean": mean_tile_size,
+                },
             }
-        })
+        )
     return ifd_stats
 
 
@@ -56,28 +58,29 @@ def _create_ifd_table(ifds, start="\t"):
         )
     return table
 
+
 def _create_json_info(cog):
     profile = cog.profile
 
     info = {
         "file": cog.filepath,
         "profile": {
-            "width": profile['width'],
-            "height": profile['height'],
-            "bands": profile['count'],
-            "dtype": profile['dtype'],
-            "crs": profile['crs'],
-            "origin": (profile['transform'].c, profile['transform'].f),
-            "resolution": (profile['transform'].a, profile['transform'].e),
+            "width": profile["width"],
+            "height": profile["height"],
+            "bands": profile["count"],
+            "dtype": profile["dtype"],
+            "crs": profile["crs"],
+            "origin": (profile["transform"].c, profile["transform"].f),
+            "resolution": (profile["transform"].a, profile["transform"].e),
             "bbox": cog.bounds,
             "compression": cog.ifds[0].compression,
-            "internal_mask": cog.is_masked
+            "internal_mask": cog.is_masked,
         },
-        "ifd": _get_ifd_stats(cog.ifds)
+        "ifd": _get_ifd_stats(cog.ifds),
     }
 
     if cog.is_masked:
-        info['mask_ifd'] = _get_ifd_stats(cog.mask_ifds)
+        info["mask_ifd"] = _get_ifd_stats(cog.mask_ifds)
 
     return info
 
@@ -85,12 +88,12 @@ def _create_json_info(cog):
 @app.command(
     short_help="Read COG metadata.",
     help="Read COG profile, IFD, and mask IFD metadata.",
-    no_args_is_help=True
+    no_args_is_help=True,
 )
 @coro
 async def info(
     filepath: str = typer.Argument(..., file_okay=True),
-    json: bool = typer.Option(False, show_default=True, help="JSON-formatted response")
+    json: bool = typer.Option(False, show_default=True, help="JSON-formatted response"),
 ):
     sep = 25
     async with COGReader(filepath) as cog:
@@ -130,7 +133,7 @@ async def info(
 @app.command(
     short_help="Create OGC TileMatrixSet.",
     help="Create OGC TileMatrixSet representation of the COG where each IFD is a unique tile matrix.",
-    no_args_is_help=True
+    no_args_is_help=True,
 )
 @coro
 async def create_tms(filepath: str):

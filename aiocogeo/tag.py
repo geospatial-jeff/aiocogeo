@@ -74,7 +74,7 @@ class Tag:
             reader.incr(4 - length)
 
             if name == "NewSubfileType":
-                bit32 = '{:032b}'.format(value[0])
+                bit32 = "{:032b}".format(value[0])
                 value = [[int(x) for x in str(int(bit32)).zfill(3)]]
 
         else:

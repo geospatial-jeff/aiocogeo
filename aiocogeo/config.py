@@ -17,4 +17,6 @@ INGESTED_BYTES_AT_OPEN: int = os.getenv("INGESTED_BYTES_AT_OPEN", 16384)
 # https://trac.osgeo.org/gdal/wiki/ConfigOptions#GDAL_HTTP_MERGE_CONSECUTIVE_RANGES
 # Determines if consecutive range requests are merged into a single request, reducing the number of HTTP GET range
 # requests required to read consecutive internal image tiles
-HTTP_MERGE_CONSECUTIVE_RANGES: str = os.getenv("HTTP_MERGE_CONSECUTIVE_RANGES", "FALSE").upper()
+HTTP_MERGE_CONSECUTIVE_RANGES: str = os.getenv(
+    "HTTP_MERGE_CONSECUTIVE_RANGES", "FALSE"
+).upper()

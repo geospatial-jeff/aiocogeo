@@ -8,6 +8,7 @@ import aiohttp
 
 from .config import INGESTED_BYTES_AT_OPEN
 
+
 @dataclass
 class Filesystem(abc.ABC):
     filepath: str
@@ -30,7 +31,7 @@ class Filesystem(abc.ABC):
             return HttpFilesystem(filepath)
         elif splits.scheme == "s3":
             return S3Filesystem(filepath)
-        elif (not splits.scheme and not splits.netloc):
+        elif not splits.scheme and not splits.netloc:
             return LocalFilesystem(filepath)
         raise NotImplemented("Unsupported file system")
 
@@ -51,7 +52,9 @@ class Filesystem(abc.ABC):
         Read from the current offset (self._offset) to the specified offset and optionall cast the result to int
         """
         if self._offset + offset > len(self.data):
-            self.data += await self.range_request(len(self.data), INGESTED_BYTES_AT_OPEN)
+            self.data += await self.range_request(
+                len(self.data), INGESTED_BYTES_AT_OPEN
+            )
         data = self.data[self._offset : self._offset + offset]
         self.incr(offset)
         order = "little" if self._endian == "<" else "big"
@@ -72,7 +75,6 @@ class Filesystem(abc.ABC):
 
 @dataclass
 class HttpFilesystem(Filesystem):
-
     async def range_request(self, start: int, offset: int) -> bytes:
         range_header = {"Range": f"bytes={start}-{start + offset}"}
         async with self.session.get(self.filepath, headers=range_header) as cog:
@@ -91,36 +93,36 @@ class HttpFilesystem(Filesystem):
 
 @dataclass
 class LocalFilesystem(Filesystem):
-
     async def range_request(self, start: int, offset: int) -> bytes:
         await self.file.seek(start)
-        self._total_bytes_requested += (offset - start)
+        self._total_bytes_requested += offset - start
         self._total_requests += 1
-        return await self.file.read(offset+1)
+        return await self.file.read(offset + 1)
 
     async def _close(self) -> None:
         await self.file.close()
 
     async def __aenter__(self):
-        self.file = await aiofiles.open(self.filepath, 'rb')
+        self.file = await aiofiles.open(self.filepath, "rb")
         return self
 
 
 @dataclass
 class S3Filesystem(Filesystem):
-
     async def range_request(self, start: int, offset: int) -> bytes:
-        req = await self.object.get(Range=f'bytes={start}-{start+offset}')
-        self._total_bytes_requested += int(req['ResponseMetadata']['HTTPHeaders']['content-length'])
+        req = await self.object.get(Range=f"bytes={start}-{start+offset}")
+        self._total_bytes_requested += int(
+            req["ResponseMetadata"]["HTTPHeaders"]["content-length"]
+        )
         self._total_requests += 1
-        data = await req['Body'].read()
+        data = await req["Body"].read()
         return data
 
     async def _close(self) -> None:
-        await self.resource.__aexit__('', '', '')
+        await self.resource.__aexit__("", "", "")
 
     async def __aenter__(self):
         splits = urlsplit(self.filepath)
-        self.resource = await aioboto3.resource('s3').__aenter__()
+        self.resource = await aioboto3.resource("s3").__aenter__()
         self.object = await self.resource.Object(splits.netloc, splits.path[1:])
         return self

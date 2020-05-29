@@ -27,7 +27,6 @@ class COGReader:
     _version: Optional[int] = 42
     _big_tiff: Optional[bool] = False
 
-
     async def __aenter__(self):
         """Open the image and read the header"""
         async with Filesystem.create_from_filepath(self.filepath) as file_reader:
@@ -113,7 +112,10 @@ class COGReader:
             # Hack to correctly identify full resolution mask ifds in deflate compressed images
             # This assumes that the image ifd always comes before the mask ifd
             try:
-                if ifd.is_mask or (ifd.is_full_resolution and ifd.ImageHeight.value == self.ifds[0].ImageHeight.value):
+                if ifd.is_mask or (
+                    ifd.is_full_resolution
+                    and ifd.ImageHeight.value == self.ifds[0].ImageHeight.value
+                ):
                     self.mask_ifds.append(ifd)
                 else:
                     self.ifds.append(ifd)
@@ -141,7 +143,9 @@ class COGReader:
             )
         return gt
 
-    def _get_overview_level(self, bounds: Tuple[float, float, float, float], width: int, height: int) -> int:
+    def _get_overview_level(
+        self, bounds: Tuple[float, float, float, float], width: int, height: int
+    ) -> int:
         """
         Calculate appropriate overview level given request bounds and shape (width + height).  Based on rio-tiler:
         https://github.com/cogeotiff/rio-tiler/blob/v2/rio_tiler/utils.py#L79-L135
@@ -169,11 +173,10 @@ class COGReader:
 
         return ovr_level
 
-
     @cached(
         cache=Cache.MEMORY,
         # Cache key comes from filepath and x/y/z coordinates of image tile
-        key_builder=lambda fn,*args,**kwargs: f"{args[0].filepath}-{args[1]}-{args[2]}-{args[3]}"
+        key_builder=lambda fn, *args, **kwargs: f"{args[0].filepath}-{args[1]}-{args[2]}-{args[3]}",
     )
     async def get_tile(self, x: int, y: int, z: int) -> np.ndarray:
         """
@@ -208,12 +211,16 @@ class COGReader:
         decoded = ifd._decompress(img_bytes[0])
         if self.is_masked:
             mask = mask_ifd._decompress_mask(img_bytes[1])
-            decoded = np.ma.masked_where(np.broadcast_to(mask, decoded.shape)==0, decoded)
+            decoded = np.ma.masked_where(
+                np.broadcast_to(mask, decoded.shape) == 0, decoded
+            )
 
         return decoded
 
     @staticmethod
-    def merge_range_requests(ranges: List[Tuple[int, int, int, int]]) -> Tuple[Tuple[int, int], Tuple[Tuple[int, int, int, int]]]:
+    def merge_range_requests(
+        ranges: List[Tuple[int, int, int, int]]
+    ) -> Tuple[Tuple[int, int], Tuple[Tuple[int, int, int, int]]]:
         """
         Helper function to merge consecutive range requests while keeping track of the initial ranges.  Returns an
         iterator which yields a tuple of tuples, where the first is a tuple with the start/end of a merged request and
@@ -246,8 +253,9 @@ class COGReader:
                 saved[1] = end
         yield tuple(saved), tuple(indices)
 
-
-    def _calculate_image_tiles(self, bounds: Tuple[float, float, float, float], ovr_level: int) -> Dict[str, Any]:
+    def _calculate_image_tiles(
+        self, bounds: Tuple[float, float, float, float], ovr_level: int
+    ) -> Dict[str, Any]:
         """
         Internal method to calculate which images tiles need to be requested for a partial read.  Also returns metadata
         about those image tiles.
@@ -277,12 +285,7 @@ class COGReader:
         # Create geotransform for the fused image
         _tlx, _tly = geotransform * (tile_bounds[0], tile_bounds[1])
         fused_gt = affine.Affine(
-            geotransform.a,
-            geotransform.b,
-            _tlx,
-            geotransform.d,
-            geotransform.e,
-            _tly
+            geotransform.a, geotransform.b, _tlx, geotransform.d, geotransform.e, _tly
         )
         inv_fused_gt = ~fused_gt
         xorigin, yorigin = [round(v) for v in inv_fused_gt * (bounds[0], bounds[3])]
@@ -295,7 +298,14 @@ class COGReader:
         }
 
     @staticmethod
-    def _stitch_image_tile(tile_arr: np.ndarray, fused_arr: np.ndarray, idx: int, idy: int, tile_width: int, tile_height: int) -> None:
+    def _stitch_image_tile(
+        tile_arr: np.ndarray,
+        fused_arr: np.ndarray,
+        idx: int,
+        idy: int,
+        tile_width: int,
+        tile_height: int,
+    ) -> None:
         """
         Helper method to mosaic a tile into a larger numpy array based on its position with respect to the larger
         array
@@ -303,9 +313,8 @@ class COGReader:
         fused_arr[
             :,
             idy * tile_height : (idy + 1) * tile_height,
-            idx * tile_width : (idx + 1) * tile_width
+            idx * tile_width : (idx + 1) * tile_width,
         ] = tile_arr
-
 
     def _stitch_merged_image_tile(
         self,
@@ -315,7 +324,7 @@ class COGReader:
         range_indices: Tuple[int, int, int, int],
         tile_width: int,
         tile_height: int,
-        ovr_level: int
+        ovr_level: int,
     ) -> None:
         """Internal asyncio callback to mosaic merged ranged requests into a larger array"""
         img_bytes = fut.result()
@@ -332,14 +341,14 @@ class COGReader:
             decoded = self.ifds[ovr_level]._decompress(tile_bytes)
             self._stitch_image_tile(decoded, fused, idx, idy, tile_width, tile_height)
 
-
     def _stitch_image_tile_callback(self, fut: asyncio.Future, *args, **kwargs):
         """Internal asyncio callback to mosaic an image tile into a larger array."""
         tile_arr = fut.result()
         self._stitch_image_tile(tile_arr, *args, **kwargs)
 
-
-    async def read(self, bounds: Tuple[float, float, float, float], shape: Tuple[int, int]) -> Union[np.ndarray, np.ma.masked_array]:
+    async def read(
+        self, bounds: Tuple[float, float, float, float], shape: Tuple[int, int]
+    ) -> Union[np.ndarray, np.ma.masked_array]:
         """
         Perform a partial read.  All pixels within the specified bounding box are read from the image and the array is
         resampled to match the desired shape.
@@ -374,7 +383,9 @@ class COGReader:
             # Merge range requests, iterate through each merged request
             for (offsets, indices) in self.merge_range_requests(ranges):
                 get_tile_task = asyncio.create_task(
-                    self._file_reader.range_request(offsets[0], offsets[1] - offsets[0] - 1)
+                    self._file_reader.range_request(
+                        offsets[0], offsets[1] - offsets[0] - 1
+                    )
                 )
                 get_tile_task.add_done_callback(
                     partial(
@@ -384,7 +395,7 @@ class COGReader:
                         range_indices=indices,
                         tile_width=tile_width,
                         tile_height=tile_height,
-                        ovr_level=ovr_level
+                        ovr_level=ovr_level,
                     )
                 )
                 tile_tasks.append(get_tile_task)
@@ -412,13 +423,16 @@ class COGReader:
         # Clip to request bounds
         clipped = fused[
             :,
-            img_tiles['tly']: img_tiles['tly'] + img_tiles['height'],
-            img_tiles['tlx']: img_tiles['tlx'] + img_tiles['width']
+            img_tiles["tly"] : img_tiles["tly"] + img_tiles["height"],
+            img_tiles["tlx"] : img_tiles["tlx"] + img_tiles["width"],
         ]
 
         # Resample to match request size
         resized = resize(
-            clipped, output_shape=(ifd.bands, shape[0], shape[1]), preserve_range=True, anti_aliasing=True
+            clipped,
+            output_shape=(ifd.bands, shape[0], shape[1]),
+            preserve_range=True,
+            anti_aliasing=True,
         ).astype(ifd.dtype)
 
         return resized
@@ -442,7 +456,9 @@ class COGReader:
         tms = {
             "title": f"Tile matrix for {self.filepath}",
             "identifier": identifier or str(uuid.uuid4()),
-            "supportedCRS": urljoin(f"http://www.opengis.net", f"/def/crs/EPSG/0/{self.epsg}"),
-            "tileMatrix": list(reversed(matrices))
+            "supportedCRS": urljoin(
+                f"http://www.opengis.net", f"/def/crs/EPSG/0/{self.epsg}"
+            ),
+            "tileMatrix": list(reversed(matrices)),
         }
         return tms

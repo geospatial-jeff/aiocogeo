@@ -9,11 +9,13 @@ from .constants import COMPRESSIONS, INTERLEAVE, SAMPLE_DTYPES
 from .filesystems import Filesystem
 from .tag import Tag
 
+
 @dataclass
 class BaseIFD:
     next_ifd_offset: int
     tag_count: int
     _file_reader: Filesystem
+
 
 @dataclass
 class RequiredTags:
@@ -30,6 +32,7 @@ class RequiredTags:
     TileOffsets: Tag
     TileWidth: Tag
 
+
 @dataclass
 class OptionalTags:
     NewSubfileType: Tag = None
@@ -40,9 +43,9 @@ class OptionalTags:
     ModelPixelScaleTag: Tag = None
     ModelTiepointTag: Tag = None
 
+
 @dataclass
 class IFD(OptionalTags, Compression, RequiredTags, BaseIFD):
-
     @property
     def compression(self) -> str:
         """Return the compression of the IFD"""
@@ -85,10 +88,13 @@ class IFD(OptionalTags, Compression, RequiredTags, BaseIFD):
         # # https://www.awaresystems.be/imaging/tiff/tifftags/newsubfiletype.html
         # # https://gdal.org/drivers/raster/gtiff.html#internal-nodata-masks
         if self.NewSubfileType:
-            if self.NewSubfileType.value[2] == 1 and self.PhotometricInterpretation.value == 4 and self.compression == "deflate":
+            if (
+                self.NewSubfileType.value[2] == 1
+                and self.PhotometricInterpretation.value == 4
+                and self.compression == "deflate"
+            ):
                 return True
         return False
-
 
     @property
     def tile_count(self) -> Tuple[int, int]:
