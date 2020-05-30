@@ -171,6 +171,18 @@ async def test_cog_read(infile, create_cog_reader):
 
 
 @pytest.mark.asyncio
+async def test_cog_read_internal_mask(create_cog_reader):
+    async with create_cog_reader("https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_masked.tif") as cog:
+        tile = await cog.read(bounds=(-10526706.9, 4445561.5, -10526084.1, 4446144.0), shape=(512,512))
+        assert np.ma.is_masked(tile)
+
+        # Confirm proportion of masked pixels
+        valid_data = tile[tile.mask == False]
+        frequencies = np.asarray(np.unique(valid_data, return_counts=True)).T
+        assert pytest.approx(frequencies[0][1] / np.prod(tile.shape), abs=0.004) == 0
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "width,height", [(500, 500), (1000, 1000), (5000, 5000), (10000, 10000)]
 )
