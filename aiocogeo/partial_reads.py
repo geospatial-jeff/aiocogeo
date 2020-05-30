@@ -61,6 +61,11 @@ class PartialRead(abc.ABC):
         """Request an internal image tile at the specified row (x), column (y), and overview (z)"""
         ...
 
+    @abc.abstractmethod
+    async def read(self, bounds: Tuple[float, float, float, float], shape: Tuple[int, int]) -> Union[np.ndarray, np.ma.masked_array]:
+        """Do a partial read"""
+        ...
+
     def _get_overview_level(
         self, bounds: Tuple[float, float, float, float], width: int, height: int
     ) -> int:
