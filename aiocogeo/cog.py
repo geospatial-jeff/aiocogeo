@@ -15,7 +15,7 @@ from . import config
 from .constants import PHOTOMETRIC
 from .errors import InvalidTiffError, TileNotFoundError
 from .filesystems import Filesystem
-from .ifd import IFD
+from .ifd import IFD, ImageIFD, MaskIFD
 
 
 def config_cache(fn: Callable) -> Callable:
@@ -30,8 +30,8 @@ def config_cache(fn: Callable) -> Callable:
 @dataclass
 class COGReader:
     filepath: str
-    ifds: Optional[List[IFD]] = field(default_factory=lambda: [])
-    mask_ifds: Optional[List[IFD]] = field(default_factory=lambda: [])
+    ifds: Optional[List[ImageIFD]] = field(default_factory=lambda: [])
+    mask_ifds: Optional[List[MaskIFD]] = field(default_factory=lambda: [])
 
     _version: Optional[int] = 42
     _big_tiff: Optional[bool] = False
@@ -119,15 +119,12 @@ class COGReader:
             ifd = await IFD.read(self._file_reader)
             next_ifd_offset = ifd.next_ifd_offset
             self._file_reader.seek(next_ifd_offset)
-            # Hack to correctly identify full resolution mask ifds in deflate compressed images
-            # This assumes that the image ifd always comes before the mask ifd
-            try:
-                if ifd.is_mask or (ifd.is_full_resolution and ifd.ImageHeight.value == self.ifds[0].ImageHeight.value):
-                    self.mask_ifds.append(ifd)
-                else:
-                    self.ifds.append(ifd)
-            except IndexError:
+
+            if isinstance(ifd, MaskIFD):
+                self.mask_ifds.append(ifd)
+            else:
                 self.ifds.append(ifd)
+
 
     def geotransform(self, ovr_level: int = 0) -> affine.Affine:
         """Return the geotransform of the image at a specific overview level (defaults to native resolution)"""
@@ -196,30 +193,25 @@ class COGReader:
         idx = (y * ifd.tile_count[0]) + x
         if idx > len(ifd.TileOffsets):
             raise TileNotFoundError(f"Tile {x} {y} {z} does not exist")
-        offset = ifd.TileOffsets[idx]
-        byte_count = ifd.TileByteCounts[idx] - 1
-        tile_task = asyncio.create_task(
-            self._file_reader.range_request(offset, byte_count)
-        )
-        futures.append(tile_task)
 
+        # Request the tile
+        futures.append(
+            asyncio.create_task(ifd._get_tile(x, y))
+        )
+
+        # Request the mask
         if self.is_masked:
             mask_ifd = self.mask_ifds[z]
-            offset = mask_ifd.TileOffsets[idx]
-            byte_count = mask_ifd.TileByteCounts[idx] - 1
-            mask_task = asyncio.create_task(
-                self._file_reader.range_request(offset, byte_count)
+            futures.append(
+                asyncio.create_task(mask_ifd._get_tile(x, y))
             )
-            futures.append(mask_task)
 
-        img_bytes = await asyncio.gather(*futures)
-
-        decoded = ifd._decompress(img_bytes[0])
+        tile = await asyncio.gather(*futures)
         if self.is_masked:
-            mask = mask_ifd._decompress_mask(img_bytes[1])
-            decoded = np.ma.masked_where(np.broadcast_to(mask, decoded.shape)==0, decoded)
-
-        return decoded
+            # Apply mask
+            tile[1] = np.invert(np.broadcast_to(tile[1], tile[0].shape))
+            return np.ma.masked_array(*tile)
+        return tile[0]
 
     def _calculate_image_tiles(self, bounds: Tuple[float, float, float, float], ovr_level: int) -> Dict[str, Any]:
         """
