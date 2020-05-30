@@ -38,7 +38,7 @@ class ReadMetadata:
 
 
 @dataclass
-class PartialRead(abc.ABC):
+class PartialReadInterface(abc.ABC):
     @property
     @abc.abstractmethod
     def is_masked(self) -> bool:

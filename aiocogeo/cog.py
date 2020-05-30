@@ -13,7 +13,7 @@ from .constants import PHOTOMETRIC
 from .errors import InvalidTiffError, TileNotFoundError
 from .filesystems import Filesystem
 from .ifd import IFD, ImageIFD, MaskIFD
-from .partial_reads import PartialRead
+from .partial_reads import PartialReadInterface
 
 
 def config_cache(fn: Callable) -> Callable:
@@ -26,7 +26,7 @@ def config_cache(fn: Callable) -> Callable:
     return wrap_function
 
 @dataclass
-class COGReader(PartialRead):
+class COGReader(PartialReadInterface):
     filepath: str
     ifds: Optional[List[ImageIFD]] = field(default_factory=lambda: [])
     mask_ifds: Optional[List[MaskIFD]] = field(default_factory=lambda: [])
