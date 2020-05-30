@@ -202,13 +202,10 @@ class COGReader(PartialRead):
         # Request those tiles
         img_arr = await self._request_tiles(img_tiles)
 
-        # Clip the array to the request bounds
-        clipped = self._clip_array(img_arr, img_tiles)
+        # Postprocess the array (clip to bounds and resize to requested shape)
+        postprocessed = self._postprocess(img_arr, img_tiles, shape)
 
-        # Resample to match requested shape
-        resized = self._resample(clipped, img_tiles, shape)
-
-        return resized
+        return postprocessed
 
     def create_tile_matrix_set(self, identifier: str = None) -> Dict[str, Any]:
         """Create an OGC TileMatrixSet where each TileMatrix corresponds to an overview"""

@@ -243,3 +243,11 @@ class PartialRead(abc.ABC):
             )
             resized = np.ma.masked_array(resized, resized_mask)
         return resized
+
+    async def _postprocess(self, arr: NpArrayType, img_tiles: ReadMetadata, out_shape: Tuple[int, int]) -> NpArrayType:
+        """Wrapper around ``_clip_array`` and ``_resample`` to postprocess the partial read"""
+        return self._resample(
+            self._clip_array(arr, img_tiles),
+            img_tiles=img_tiles,
+            out_shape=out_shape
+        )
