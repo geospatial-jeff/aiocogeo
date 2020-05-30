@@ -122,20 +122,31 @@ async def test_cog_calculate_image_tiles(infile, create_cog_reader):
     async with create_cog_reader(infile) as cog:
         ovr_level = 0
         gt = cog.geotransform(ovr_level)
+        ifd = cog.ifds[ovr_level]
 
         # Find bounds of top left tile at native res
         bounds = (
             gt.c,
-            gt.f + cog.ifds[0].TileHeight.value * gt.e,
-            gt.c + cog.ifds[0].TileWidth.value * gt.a,
+            gt.f + ifd.TileHeight.value * gt.e,
+            gt.c + ifd.TileWidth.value * gt.a,
             gt.f
         )
 
-        img_tile = cog._calculate_image_tiles(bounds, ovr_level)
-        assert img_tile['tlx'] == img_tile['tly'] == 0
-        assert img_tile['width'] == cog.ifds[0].TileWidth.value
-        assert img_tile['height'] == cog.ifds[0].TileHeight.value
-        assert img_tile['tile_ranges'] == (0, 0, 1, 1)
+        img_tile = cog._calculate_image_tiles(
+            bounds,
+            tile_width=ifd.TileWidth.value,
+            tile_height=ifd.TileHeight.value,
+            band_count=ifd.bands,
+            ovr_level=ovr_level,
+            dtype=ifd.dtype
+        )
+        assert img_tile.tlx == img_tile.tly == 0
+        assert img_tile.width == cog.ifds[0].TileWidth.value
+        assert img_tile.height == cog.ifds[0].TileHeight.value
+        assert img_tile.xmin == 0
+        assert img_tile.ymin == 0
+        assert img_tile.xmax == 1
+        assert img_tile.ymax == 1
 
 
 @pytest.mark.asyncio
