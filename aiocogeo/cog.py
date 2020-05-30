@@ -200,8 +200,7 @@ class COGReader(PartialRead):
         )
 
         # Request those tiles
-        img_arr = self._init_array(img_tiles)
-        await self._request_tiles(img_arr, img_tiles)
+        img_arr = await self._request_tiles(img_tiles)
 
         # Clip the array to the request bounds
         clipped = self._clip_array(img_arr, img_tiles)

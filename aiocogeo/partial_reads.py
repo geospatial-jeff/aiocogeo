@@ -192,8 +192,9 @@ class PartialRead(abc.ABC):
                 idx * tile_width : (idx + 1) * tile_width,
             ] = img_arr.mask
 
-    async def _request_tiles(self, arr: NpArrayType, img_tiles: ReadMetadata) -> None:
+    async def _request_tiles(self, img_tiles: ReadMetadata) -> NpArrayType:
         """Concurrently request the image tiles and mosaic into a larger array"""
+        img_arr = self._init_array(img_tiles)
         tile_tasks = []
         for idx, xtile in enumerate(range(img_tiles.xmin, img_tiles.xmax + 1)):
             for idy, ytile in enumerate(range(img_tiles.ymin, img_tiles.ymax + 1)):
@@ -203,7 +204,7 @@ class PartialRead(abc.ABC):
                 get_tile_task.add_done_callback(
                     partial(
                         self._stitch_image_tile,
-                        fused_arr=arr,
+                        fused_arr=img_arr,
                         idx=idx,
                         idy=idy,
                         tile_width=img_tiles.tile_width,
@@ -212,6 +213,7 @@ class PartialRead(abc.ABC):
                 )
                 tile_tasks.append(get_tile_task)
         await asyncio.gather(*tile_tasks)
+        return img_arr
 
     def _clip_array(self, arr: NpArrayType, img_tiles: ReadMetadata) -> NpArrayType:
         """Clip a numpy array to the extent of the parial read via slicing"""
