@@ -267,11 +267,19 @@ class COGReader:
             idy * tile_height : (idy + 1) * tile_height,
             idx * tile_width : (idx + 1) * tile_width
         ] = img_arr
+        if np.ma.is_masked(img_arr):
+            fused_arr.mask[
+                :,
+                idy * tile_height : (idy + 1) * tile_height,
+                idx * tile_width : (idx + 1) * tile_width
+            ] = img_arr.mask
 
     async def read(self, bounds: Tuple[float, float, float, float], shape: Tuple[int, int]) -> Union[np.ndarray, np.ma.masked_array]:
         """
         Perform a partial read.  All pixels within the specified bounding box are read from the image and the array is
         resampled to match the desired shape.
+
+        # TODO: Break this up into two methods for masked/not masked
         """
         # Determine which tiles intersect the request bounds
         ovr_level = self._get_overview_level(bounds, shape[1], shape[0])
@@ -290,6 +298,9 @@ class COGReader:
                 (xmax + 1 - xmin) * tile_width,
             )
         ).astype(ifd.dtype)
+        if self.is_masked:
+            fused = np.ma.masked_array(fused)
+
         for idx, xtile in enumerate(range(xmin, xmax + 1)):
             for idy, ytile in enumerate(range(ymin, ymax + 1)):
                 get_tile_task = asyncio.create_task(
@@ -319,6 +330,11 @@ class COGReader:
         resized = resize(
             clipped, output_shape=(ifd.bands, shape[0], shape[1]), preserve_range=True, anti_aliasing=True
         ).astype(ifd.dtype)
+        if self.is_masked:
+            resized_mask = resize(
+                clipped.mask, output_shape=(ifd.bands, shape[0], shape[1]), preserve_range=True, anti_aliasing=True, order=0
+            )
+            resized = np.ma.masked_array(resized, resized_mask)
 
         return resized
 
