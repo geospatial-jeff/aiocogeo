@@ -1,5 +1,6 @@
 import asyncio
 from dataclasses import dataclass, field
+import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from urllib.parse import urljoin
 import uuid
@@ -15,6 +16,8 @@ from .filesystems import Filesystem
 from .ifd import IFD, ImageIFD, MaskIFD
 from .partial_reads import PartialReadInterface
 
+logger = logging.getLogger(__name__)
+logger.setLevel(config.LOG_LEVEL)
 
 def config_cache(fn: Callable) -> Callable:
     """
@@ -115,6 +118,7 @@ class COGReader(PartialReadInterface):
         next_ifd_offset = 1
         while next_ifd_offset != 0:
             ifd = await IFD.read(self._file_reader)
+            logger.debug(f" Opened {ifd.ImageHeight.value}x{ifd.ImageWidth.value} overview")
             next_ifd_offset = ifd.next_ifd_offset
             self._file_reader.seek(next_ifd_offset)
 
