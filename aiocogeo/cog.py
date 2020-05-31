@@ -109,6 +109,15 @@ class COGReader(PartialReadInterface):
         return [2 ** (ifd + 1) for ifd in range(len(self.ifds) - 1)]
 
     @property
+    def requests(self) -> Dict[str, Union[int, List[Tuple[int]]]]:
+        """Return statistics about http requests made during context lifecycle"""
+        return {
+            'count': self._file_reader._total_requests,
+            'byte_count': self._file_reader._total_bytes_requested,
+            'ranges': self._file_reader._requested_ranges
+        }
+
+    @property
     def is_masked(self) -> bool:
         """Check if the image has an internal mask"""
         return True if self.mask_ifds else False

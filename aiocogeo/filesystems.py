@@ -24,6 +24,7 @@ class Filesystem(abc.ABC):
         self._endian: str = "<"
         self._total_bytes_requested: int = 0
         self._total_requests: int = 0
+        self._requested_ranges = []
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         ...
@@ -83,8 +84,6 @@ class HttpFilesystem(Filesystem):
         range_header = {"Range": f"bytes={start}-{start + offset}"}
         async with self.session.get(self.filepath, headers=range_header) as cog:
             data = await cog.content.read()
-            self._total_bytes_requested += int(cog.headers["Content-Length"])
-            self._total_requests += 1
         return data
 
     async def _close(self) -> None:
@@ -111,6 +110,10 @@ class HttpFilesystem(Filesystem):
 
     async def _on_request_end(self, session, trace_config_ctx, params):
         elapsed = round(asyncio.get_event_loop().time() - trace_config_ctx.start, 3)
+        content_range = params.response.headers['Content-Range'].split(' ')[-1].split('/')[0]
+        self._total_bytes_requested += int(params.response.headers["Content-Length"])
+        self._total_requests += 1
+        self._requested_ranges.append(tuple([int(v) for v in content_range.split('-')]))
         if config.VERBOSE_LOGS:
             debug_statement = [f"\n < HTTP/{session.version.major}.{session.version.minor}"]
             debug_statement += [f"\n < {k}: {v}" for (k, v) in params.response.headers.items()]

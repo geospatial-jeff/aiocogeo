@@ -203,15 +203,15 @@ async def test_cog_read_merge_range_requests(create_cog_reader, monkeypatch):
     # Do a request without merged range requests
     async with create_cog_reader(infile) as cog:
         tile_data = await cog.read(bounds=bounds, shape=shape)
-        request_count = cog._file_reader._total_requests
-        bytes_requested = cog._file_reader._total_bytes_requested
+        request_count = cog.requests['count']
+        bytes_requested = cog.requests['byte_count']
 
     # Do a request with merged range requests
     monkeypatch.setattr(config, "HTTP_MERGE_CONSECUTIVE_RANGES", True)
     async with create_cog_reader(infile) as cog:
         tile_data_merged = await cog.read(bounds=bounds, shape=shape)
-        merged_request_count = cog._file_reader._total_requests
-        merged_bytes_requested = cog._file_reader._total_bytes_requested
+        merged_request_count = cog.requests['count']
+        merged_bytes_requested = cog.requests['byte_count']
 
     # Confirm we got the same tile with fewer requests
     assert merged_request_count < request_count
@@ -230,16 +230,16 @@ async def test_cog_read_merge_range_requests_with_internal_nodata_mask(create_co
     async with create_cog_reader(infile) as cog:
         tile_data = await cog.read(bounds=bounds, shape=shape)
         # assert np.ma.is_masked(tile_data)
-        request_count = cog._file_reader._total_requests
-        bytes_requested = cog._file_reader._total_bytes_requested
+        request_count = cog.requests['count']
+        bytes_requested = cog.requests['byte_count']
 
     # Do a request with merged range requests
     monkeypatch.setattr(config, "HTTP_MERGE_CONSECUTIVE_RANGES", True)
     async with create_cog_reader(infile) as cog:
         tile_data_merged = await cog.read(bounds=bounds, shape=shape)
         # assert np.ma.is_masked(tile_data_merged)
-        merged_request_count = cog._file_reader._total_requests
-        merged_bytes_requested = cog._file_reader._total_bytes_requested
+        merged_request_count = cog.requests['count']
+        merged_bytes_requested = cog.requests['byte_count']
 
     # Confirm we got the same tile with fewer requests
     assert merged_request_count < request_count
@@ -289,10 +289,10 @@ async def test_block_cache_enabled(create_cog_reader, monkeypatch):
     infile = "https://async-cog-reader-test-data.s3.amazonaws.com/lzw_cog.tif"
     async with create_cog_reader(infile) as cog:
         await cog.get_tile(0,0,0)
-        request_count = cog._file_reader._total_requests
+        request_count = cog.requests['count']
 
         await cog.get_tile(0,0,0)
-        assert cog._file_reader._total_requests == request_count
+        assert cog.requests['count'] == request_count
 
 
 @pytest.mark.asyncio
@@ -301,10 +301,10 @@ async def test_block_cache_disabled(create_cog_reader):
     infile = "https://async-cog-reader-test-data.s3.amazonaws.com/lzw_cog.tif"
     async with create_cog_reader(infile) as cog:
         await cog.get_tile(0,0,0)
-        request_count = cog._file_reader._total_requests
+        request_count = cog.requests['count']
 
         await cog.get_tile(0,0,0)
-        assert cog._file_reader._total_requests == request_count + 1
+        assert cog.requests['count'] == request_count + 1
 
 
 
