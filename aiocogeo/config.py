@@ -10,3 +10,5 @@ LOG_LEVEL: str = os.getenv("LOG_LEVEL", "WARN")
 # Defines the number of bytes read in the first GET request at file opening
 # Can help performance when reading images with a large header
 INGESTED_BYTES_AT_OPEN: int = os.getenv("INGESTED_BYTES_AT_OPEN", 16384)
+
+ENABLE_BLOCK_CACHE: bool = True if os.getenv("ENABLE_BLOCK_CACHE", "TRUE").upper() == "TRUE" else False
