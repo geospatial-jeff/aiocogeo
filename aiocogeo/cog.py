@@ -2,7 +2,7 @@ import asyncio
 from dataclasses import dataclass, field
 from functools import partial
 import math
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from urllib.parse import urljoin
 import uuid
 
@@ -11,11 +11,21 @@ import affine
 import numpy as np
 from skimage.transform import resize
 
+from . import config
 from .constants import PHOTOMETRIC
 from .errors import InvalidTiffError, TileNotFoundError
 from .filesystems import Filesystem
 from .ifd import IFD
 
+
+def config_cache(fn: Callable) -> Callable:
+    """
+    Inject cache config params (https://aiocache.readthedocs.io/en/latest/decorators.html#aiocache.cached)
+    """
+    def wrap_function(*args, **kwargs):
+        kwargs['cache_read'] = kwargs['cache_write'] = config.ENABLE_BLOCK_CACHE
+        return fn(*args, **kwargs)
+    return wrap_function
 
 @dataclass
 class COGReader:
@@ -168,13 +178,13 @@ class COGReader:
 
         return ovr_level
 
-
+    @config_cache
     @cached(
         cache=Cache.MEMORY,
-        # Cache key comes from filepath and x/y/z coordinates of image tile
         key_builder=lambda fn,*args,**kwargs: f"{args[0].filepath}-{args[1]}-{args[2]}-{args[3]}"
     )
     async def get_tile(self, x: int, y: int, z: int) -> np.ndarray:
+
         """
         Request an internal image tile at the specified row (x), column (y), and overview (z).  Based on COGDumper:
         https://github.com/mapbox/COGDumper/blob/master/cogdumper/cog_tiles.py#L337-L365

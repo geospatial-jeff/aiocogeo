@@ -11,6 +11,7 @@ from rio_tiler.io import cogeo
 from rio_tiler import utils as rio_tiler_utils
 from shapely.geometry import Polygon
 
+from aiocogeo import config
 from aiocogeo.ifd import IFD
 from aiocogeo.tag import Tag
 from aiocogeo.errors import InvalidTiffError
@@ -215,6 +216,31 @@ async def test_cog_metadata_iter(infile, create_cog_reader):
             assert isinstance(ifd, IFD)
             for tag in ifd:
                 assert isinstance(tag, Tag)
+
+@pytest.mark.asyncio
+async def test_block_cache_enabled(create_cog_reader):
+    # Cache is enabled by default
+    infile = "https://async-cog-reader-test-data.s3.amazonaws.com/lzw_cog.tif"
+    async with create_cog_reader(infile) as cog:
+        await cog.get_tile(0,0,0)
+        request_count = cog._file_reader._total_requests
+
+        await cog.get_tile(0,0,0)
+        assert cog._file_reader._total_requests == request_count
+
+
+@pytest.mark.asyncio
+async def test_block_cache_disabled(create_cog_reader, monkeypatch):
+    monkeypatch.setattr(config, "ENABLE_BLOCK_CACHE", False)
+
+    infile = "https://async-cog-reader-test-data.s3.amazonaws.com/lzw_cog.tif"
+    async with create_cog_reader(infile) as cog:
+        await cog.get_tile(0,0,0)
+        request_count = cog._file_reader._total_requests
+
+        await cog.get_tile(0,0,0)
+        assert cog._file_reader._total_requests == request_count + 1
+
 
 
 @pytest.mark.asyncio
