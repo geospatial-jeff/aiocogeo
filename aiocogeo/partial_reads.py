@@ -63,7 +63,9 @@ class PartialReadBase(abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def read(self, bounds: Tuple[float, float, float, float], shape: Tuple[int, int]) -> Union[np.ndarray, np.ma.masked_array]:
+    async def read(
+        self, bounds: Tuple[float, float, float, float], shape: Tuple[int, int]
+    ) -> Union[np.ndarray, np.ma.masked_array]:
         """Do a partial read"""
         ...
 
@@ -204,15 +206,15 @@ class PartialReadBase(abc.ABC):
     ) -> None:
         """Mosaic an array into a larger array"""
         fused_arr[
-        :,
-        idy * tile_height: (idy + 1) * tile_height,
-        idx * tile_width: (idx + 1) * tile_width,
+            :,
+            idy * tile_height : (idy + 1) * tile_height,
+            idx * tile_width : (idx + 1) * tile_width,
         ] = arr
         if np.ma.is_masked(arr):
             fused_arr.mask[
-            :,
-            idy * tile_height: (idy + 1) * tile_height,
-            idx * tile_width: (idx + 1) * tile_width,
+                :,
+                idy * tile_height : (idy + 1) * tile_height,
+                idx * tile_width : (idx + 1) * tile_width,
             ] = arr.mask
 
     async def _request_tiles(self, img_tiles: ReadMetadata) -> NpArrayType:
@@ -267,55 +269,70 @@ class PartialReadBase(abc.ABC):
             resized = np.ma.masked_array(resized, resized_mask)
         return resized
 
-    def _postprocess(self, arr: NpArrayType, img_tiles: ReadMetadata, out_shape: Tuple[int, int]) -> NpArrayType:
+    def _postprocess(
+        self, arr: NpArrayType, img_tiles: ReadMetadata, out_shape: Tuple[int, int]
+    ) -> NpArrayType:
         """Wrapper around ``_clip_array`` and ``_resample`` to postprocess the partial read"""
         return self._resample(
-            self._clip_array(arr, img_tiles),
-            img_tiles=img_tiles,
-            out_shape=out_shape
+            self._clip_array(arr, img_tiles), img_tiles=img_tiles, out_shape=out_shape
         )
 
 
 @dataclass
 class PartialReadInterface(PartialReadBase):
+    @staticmethod
+    def _extract_tile(ifd, img_bytes, tile_index, offset):
+        byte_count = ifd.TileByteCounts[tile_index]
+        tile_start = ifd.TileOffsets[tile_index] - offset
+        tile_bytes = img_bytes[tile_start : tile_start + byte_count]
+        return tile_bytes
 
+    @staticmethod
+    def _merge_range_requests(ifd, tile_indices, offset):
+        byte_count = (
+            ifd.TileOffsets[max(tile_indices)] + ifd.TileByteCounts[max(tile_indices)]
+        )
+        return (offset, byte_count - offset - 1)
 
     async def _request_merged_tile(self, arr, indices, img_tiles: ReadMetadata):
         tile_indices = [idx[0] for idx in indices]
         futures = []
         ifd = self.ifds[img_tiles.ovr_level]
         offset = ifd.TileOffsets[min(tile_indices)]
-        byte_count = ifd.TileOffsets[max(tile_indices)] + ifd.TileByteCounts[max(tile_indices)]
         tile_task = asyncio.create_task(
-            self._file_reader.range_request(offset, byte_count - offset - 1)
+            self._file_reader.range_request(
+                *self._merge_range_requests(ifd, tile_indices, offset)
+            )
         )
         futures.append(tile_task)
 
         if self.is_masked:
             mask_ifd = self.mask_ifds[img_tiles.ovr_level]
             mask_offset = mask_ifd.TileOffsets[min(tile_indices)]
-            byte_count = mask_ifd.TileOffsets[max(tile_indices)] + mask_ifd.TileByteCounts[max(tile_indices)]
             mask_task = asyncio.create_task(
-                self._file_reader.range_request(mask_offset, byte_count - mask_offset - 1)
+                self._file_reader.range_request(
+                    *self._merge_range_requests(mask_ifd, tile_indices, mask_offset)
+                )
             )
             futures.append(mask_task)
 
         response = await asyncio.gather(*futures)
 
         for (tile_idx, idx, idy) in indices:
-            tile_byte_count = ifd.TileByteCounts[tile_idx]
-            tile_start = ifd.TileOffsets[tile_idx] - offset
-            tile_bytes = response[0][tile_start:tile_start+tile_byte_count]
+            tile_bytes = self._extract_tile(ifd, response[0], tile_idx, offset)
             decoded = ifd._decompress(tile_bytes)
             if self.is_masked:
                 mask_ifd = self.mask_ifds[img_tiles.ovr_level]
-                mask_byte_count = mask_ifd.TileByteCounts[tile_idx]
-                mask_start = mask_ifd.TileOffsets[tile_idx] - mask_offset
-                mask_bytes = response[1][mask_start:mask_start + mask_byte_count]
+                mask_bytes = self._extract_tile(
+                    mask_ifd, response[1], tile_idx, mask_offset
+                )
                 mask_decoded = ifd._decompress_mask(mask_bytes)
-                decoded = np.ma.masked_array(decoded, np.invert(np.broadcast_to(mask_decoded, decoded.shape)))
-            self._stitch_image_tile(decoded, arr, idx, idy, img_tiles.tile_width, img_tiles.tile_height)
-
+                decoded = np.ma.masked_array(
+                    decoded, np.invert(np.broadcast_to(mask_decoded, decoded.shape))
+                )
+            self._stitch_image_tile(
+                decoded, arr, idx, idy, img_tiles.tile_width, img_tiles.tile_height
+            )
 
     async def _request_merged_tiles(self, img_tiles: ReadMetadata) -> NpArrayType:
         futures = []
