@@ -222,6 +222,8 @@ async def test_cog_read_merge_range_requests(create_cog_reader, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_cog_read_merge_range_requests_with_internal_nodata_mask(create_cog_reader, monkeypatch):
+    monkeypatch.setattr(config, "ENABLE_BLOCK_CACHE", False)
+
     infile = "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_masked.tif"
     bounds = (-10526706.9, 4445561.5, -10526084.1, 4446144.0)
     shape = (512, 512)
@@ -283,8 +285,9 @@ async def test_cog_metadata_iter(infile, create_cog_reader):
                 assert isinstance(tag, Tag)
 
 @pytest.mark.asyncio
-async def test_block_cache_enabled(create_cog_reader):
-    # Cache is enabled by default
+async def test_block_cache_enabled(create_cog_reader, monkeypatch):
+    # Cache is disabled for tests
+    monkeypatch.setattr(config, "ENABLE_BLOCK_CACHE", True)
     infile = "https://async-cog-reader-test-data.s3.amazonaws.com/lzw_cog.tif"
     async with create_cog_reader(infile) as cog:
         await cog.get_tile(0,0,0)
@@ -295,8 +298,7 @@ async def test_block_cache_enabled(create_cog_reader):
 
 
 @pytest.mark.asyncio
-async def test_block_cache_disabled(create_cog_reader, monkeypatch):
-    monkeypatch.setattr(config, "ENABLE_BLOCK_CACHE", False)
+async def test_block_cache_disabled(create_cog_reader):
 
     infile = "https://async-cog-reader-test-data.s3.amazonaws.com/lzw_cog.tif"
     async with create_cog_reader(infile) as cog:
