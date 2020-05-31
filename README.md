@@ -128,6 +128,7 @@ async with COGReader("https://async-cog-reader-test-data.s3.amazonaws.com/naip_i
 ### Configuration
 Configuration options are exposed through environment variables:
 - **INGESTED_BYTES_AT_OPEN** - defines the number of bytes in the first GET request at file opening (defaults to 16KB)
+- **ENABLE_BLOCK_CACHE** - determines if internal blocks are cached in memory (defaults to TRUE)
 
 
 ## CLI
