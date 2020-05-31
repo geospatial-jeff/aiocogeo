@@ -4,6 +4,7 @@ import aiohttp
 import pytest
 from typer.testing import CliRunner
 
+from aiocogeo import config
 from aiocogeo import COGReader
 
 
@@ -29,7 +30,8 @@ async def client_session():
 
 
 @pytest.fixture
-def create_cog_reader(client_session):
+def create_cog_reader(client_session, monkeypatch):
+    monkeypatch.setattr(config, "ENABLE_BLOCK_CACHE", False)
     def _create_reader(infile):
         return COGReader(filepath=infile)
 

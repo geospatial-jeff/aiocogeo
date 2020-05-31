@@ -122,20 +122,31 @@ async def test_cog_calculate_image_tiles(infile, create_cog_reader):
     async with create_cog_reader(infile) as cog:
         ovr_level = 0
         gt = cog.geotransform(ovr_level)
+        ifd = cog.ifds[ovr_level]
 
         # Find bounds of top left tile at native res
         bounds = (
             gt.c,
-            gt.f + cog.ifds[0].TileHeight.value * gt.e,
-            gt.c + cog.ifds[0].TileWidth.value * gt.a,
+            gt.f + ifd.TileHeight.value * gt.e,
+            gt.c + ifd.TileWidth.value * gt.a,
             gt.f
         )
 
-        img_tile = cog._calculate_image_tiles(bounds, ovr_level)
-        assert img_tile['tlx'] == img_tile['tly'] == 0
-        assert img_tile['width'] == cog.ifds[0].TileWidth.value
-        assert img_tile['height'] == cog.ifds[0].TileHeight.value
-        assert img_tile['tile_ranges'] == (0, 0, 1, 1)
+        img_tile = cog._calculate_image_tiles(
+            bounds,
+            tile_width=ifd.TileWidth.value,
+            tile_height=ifd.TileHeight.value,
+            band_count=ifd.bands,
+            ovr_level=ovr_level,
+            dtype=ifd.dtype
+        )
+        assert img_tile.tlx == img_tile.tly == 0
+        assert img_tile.width == cog.ifds[0].TileWidth.value
+        assert img_tile.height == cog.ifds[0].TileHeight.value
+        assert img_tile.xmin == 0
+        assert img_tile.ymin == 0
+        assert img_tile.xmax == 1
+        assert img_tile.ymax == 1
 
 
 @pytest.mark.asyncio
@@ -180,7 +191,61 @@ async def test_cog_read_internal_mask(create_cog_reader):
         # Confirm proportion of masked pixels
         valid_data = tile[tile.mask == False]
         frequencies = np.asarray(np.unique(valid_data, return_counts=True)).T
-        assert pytest.approx(frequencies[0][1] / np.prod(tile.shape), abs=0.004) == 0
+        assert pytest.approx(frequencies[0][1] / np.prod(tile.shape), abs=0.002) == 0
+
+
+@pytest.mark.asyncio
+async def test_cog_read_merge_range_requests(create_cog_reader, monkeypatch):
+    infile = "https://async-cog-reader-test-data.s3.amazonaws.com/lzw_cog.tif"
+    bounds = (368461,3770591,368796,3770921)
+    shape = (512, 512)
+
+    # Do a request without merged range requests
+    async with create_cog_reader(infile) as cog:
+        tile_data = await cog.read(bounds=bounds, shape=shape)
+        request_count = cog._file_reader._total_requests
+        bytes_requested = cog._file_reader._total_bytes_requested
+
+    # Do a request with merged range requests
+    monkeypatch.setattr(config, "HTTP_MERGE_CONSECUTIVE_RANGES", True)
+    async with create_cog_reader(infile) as cog:
+        tile_data_merged = await cog.read(bounds=bounds, shape=shape)
+        merged_request_count = cog._file_reader._total_requests
+        merged_bytes_requested = cog._file_reader._total_bytes_requested
+
+    # Confirm we got the same tile with fewer requests
+    assert merged_request_count < request_count
+    assert bytes_requested == merged_bytes_requested
+    assert tile_data.all() == tile_data_merged.all()
+    assert tile_data.shape == tile_data_merged.shape
+
+
+@pytest.mark.asyncio
+async def test_cog_read_merge_range_requests_with_internal_nodata_mask(create_cog_reader, monkeypatch):
+    infile = "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_masked.tif"
+    bounds = (-10526706.9, 4445561.5, -10526084.1, 4446144.0)
+    shape = (512, 512)
+
+    # Do a request without merged range requests
+    async with create_cog_reader(infile) as cog:
+        tile_data = await cog.read(bounds=bounds, shape=shape)
+        # assert np.ma.is_masked(tile_data)
+        request_count = cog._file_reader._total_requests
+        bytes_requested = cog._file_reader._total_bytes_requested
+
+    # Do a request with merged range requests
+    monkeypatch.setattr(config, "HTTP_MERGE_CONSECUTIVE_RANGES", True)
+    async with create_cog_reader(infile) as cog:
+        tile_data_merged = await cog.read(bounds=bounds, shape=shape)
+        # assert np.ma.is_masked(tile_data_merged)
+        merged_request_count = cog._file_reader._total_requests
+        merged_bytes_requested = cog._file_reader._total_bytes_requested
+
+    # Confirm we got the same tile with fewer requests
+    assert merged_request_count < request_count
+    assert bytes_requested == merged_bytes_requested
+    assert tile_data.all() == tile_data_merged.all()
+    assert tile_data.shape == tile_data_merged.shape
 
 
 @pytest.mark.asyncio
@@ -218,8 +283,9 @@ async def test_cog_metadata_iter(infile, create_cog_reader):
                 assert isinstance(tag, Tag)
 
 @pytest.mark.asyncio
-async def test_block_cache_enabled(create_cog_reader):
-    # Cache is enabled by default
+async def test_block_cache_enabled(create_cog_reader, monkeypatch):
+    # Cache is disabled for tests
+    monkeypatch.setattr(config, "ENABLE_BLOCK_CACHE", True)
     infile = "https://async-cog-reader-test-data.s3.amazonaws.com/lzw_cog.tif"
     async with create_cog_reader(infile) as cog:
         await cog.get_tile(0,0,0)
@@ -230,8 +296,7 @@ async def test_block_cache_enabled(create_cog_reader):
 
 
 @pytest.mark.asyncio
-async def test_block_cache_disabled(create_cog_reader, monkeypatch):
-    monkeypatch.setattr(config, "ENABLE_BLOCK_CACHE", False)
+async def test_block_cache_disabled(create_cog_reader):
 
     infile = "https://async-cog-reader-test-data.s3.amazonaws.com/lzw_cog.tif"
     async with create_cog_reader(infile) as cog:

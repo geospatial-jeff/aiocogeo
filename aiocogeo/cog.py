@@ -1,7 +1,5 @@
 import asyncio
 from dataclasses import dataclass, field
-from functools import partial
-import math
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from urllib.parse import urljoin
 import uuid
@@ -9,13 +7,13 @@ import uuid
 from aiocache import cached, Cache
 import affine
 import numpy as np
-from skimage.transform import resize
 
 from . import config
 from .constants import PHOTOMETRIC
 from .errors import InvalidTiffError, TileNotFoundError
 from .filesystems import Filesystem
-from .ifd import IFD
+from .ifd import IFD, ImageIFD, MaskIFD
+from .partial_reads import PartialReadInterface
 
 
 def config_cache(fn: Callable) -> Callable:
@@ -28,10 +26,10 @@ def config_cache(fn: Callable) -> Callable:
     return wrap_function
 
 @dataclass
-class COGReader:
+class COGReader(PartialReadInterface):
     filepath: str
-    ifds: Optional[List[IFD]] = field(default_factory=lambda: [])
-    mask_ifds: Optional[List[IFD]] = field(default_factory=lambda: [])
+    ifds: Optional[List[ImageIFD]] = field(default_factory=lambda: [])
+    mask_ifds: Optional[List[MaskIFD]] = field(default_factory=lambda: [])
 
     _version: Optional[int] = 42
     _big_tiff: Optional[bool] = False
@@ -119,15 +117,12 @@ class COGReader:
             ifd = await IFD.read(self._file_reader)
             next_ifd_offset = ifd.next_ifd_offset
             self._file_reader.seek(next_ifd_offset)
-            # Hack to correctly identify full resolution mask ifds in deflate compressed images
-            # This assumes that the image ifd always comes before the mask ifd
-            try:
-                if ifd.is_mask or (ifd.is_full_resolution and ifd.ImageHeight.value == self.ifds[0].ImageHeight.value):
-                    self.mask_ifds.append(ifd)
-                else:
-                    self.ifds.append(ifd)
-            except IndexError:
+
+            if isinstance(ifd, MaskIFD):
+                self.mask_ifds.append(ifd)
+            else:
                 self.ifds.append(ifd)
+
 
     def geotransform(self, ovr_level: int = 0) -> affine.Affine:
         """Return the geotransform of the image at a specific overview level (defaults to native resolution)"""
@@ -150,34 +145,6 @@ class COGReader:
             )
         return gt
 
-    def _get_overview_level(self, bounds: Tuple[float, float, float, float], width: int, height: int) -> int:
-        """
-        Calculate appropriate overview level given request bounds and shape (width + height).  Based on rio-tiler:
-        https://github.com/cogeotiff/rio-tiler/blob/v2/rio_tiler/utils.py#L79-L135
-        """
-        src_res = self.geotransform().a
-        target_gt = affine.Affine.translation(
-            bounds[0], bounds[3]
-        ) * affine.Affine.scale(
-            (bounds[2] - bounds[0]) / width, (bounds[1] - bounds[3]) / height
-        )
-        target_res = target_gt.a
-
-        ovr_level = 0
-        if target_res > src_res:
-            # Decimated resolution at each overview
-            overviews = [src_res * decim for decim in self.overviews]
-            for ovr_level in range(ovr_level, len(overviews) - 1):
-                ovr_res = src_res if ovr_level == 0 else overviews[ovr_level]
-                if (ovr_res < target_res) and (overviews[ovr_level + 1] > target_res):
-                    break
-                if abs(ovr_res - target_res) < 1e-1:
-                    break
-            else:
-                ovr_level = len(overviews) - 1
-
-        return ovr_level
-
     @config_cache
     @cached(
         cache=Cache.MEMORY,
@@ -196,157 +163,53 @@ class COGReader:
         idx = (y * ifd.tile_count[0]) + x
         if idx > len(ifd.TileOffsets):
             raise TileNotFoundError(f"Tile {x} {y} {z} does not exist")
-        offset = ifd.TileOffsets[idx]
-        byte_count = ifd.TileByteCounts[idx] - 1
-        tile_task = asyncio.create_task(
-            self._file_reader.range_request(offset, byte_count)
-        )
-        futures.append(tile_task)
 
+        # Request the tile
+        futures.append(
+            asyncio.create_task(ifd._get_tile(x, y))
+        )
+
+        # Request the mask
         if self.is_masked:
             mask_ifd = self.mask_ifds[z]
-            offset = mask_ifd.TileOffsets[idx]
-            byte_count = mask_ifd.TileByteCounts[idx] - 1
-            mask_task = asyncio.create_task(
-                self._file_reader.range_request(offset, byte_count)
+            futures.append(
+                asyncio.create_task(mask_ifd._get_tile(x, y))
             )
-            futures.append(mask_task)
 
-        img_bytes = await asyncio.gather(*futures)
-
-        decoded = ifd._decompress(img_bytes[0])
+        tile = await asyncio.gather(*futures)
         if self.is_masked:
-            mask = mask_ifd._decompress_mask(img_bytes[1])
-            decoded = np.ma.masked_where(np.broadcast_to(mask, decoded.shape)==0, decoded)
-
-        return decoded
-
-    def _calculate_image_tiles(self, bounds: Tuple[float, float, float, float], ovr_level: int) -> Dict[str, Any]:
-        """
-        Internal method to calculate which images tiles need to be requested for a partial read.  Also returns metadata
-        about those image tiles.
-        """
-        geotransform = self.geotransform(ovr_level)
-        invgt = ~geotransform
-        tile_width = self.ifds[ovr_level].TileWidth.value
-        tile_height = self.ifds[ovr_level].TileHeight.value
-
-        # Project request bounds to pixel coordinates relative to geotransform of the overview
-        tlx, tly = invgt * (bounds[0], bounds[3])
-        brx, bry = invgt * (bounds[2], bounds[1])
-
-        # Calculate tiles
-        xmin = math.floor((tlx + 1e-6) / tile_width)
-        xmax = math.floor((brx + 1e-6) / tile_width)
-        ymax = math.floor((bry + 1e-6) / tile_height)
-        ymin = math.floor((tly + 1e-6) / tile_height)
-
-        tile_bounds = (
-            xmin * tile_width,
-            ymin * tile_height,
-            (xmax + 1) * tile_width,
-            (ymax + 1) * tile_height,
-        )
-
-        # Create geotransform for the fused image
-        _tlx, _tly = geotransform * (tile_bounds[0], tile_bounds[1])
-        fused_gt = affine.Affine(
-            geotransform.a,
-            geotransform.b,
-            _tlx,
-            geotransform.d,
-            geotransform.e,
-            _tly
-        )
-        inv_fused_gt = ~fused_gt
-        xorigin, yorigin = [round(v) for v in inv_fused_gt * (bounds[0], bounds[3])]
-        return {
-            "tlx": xorigin,
-            "tly": yorigin,
-            "width": round(brx - tlx),
-            "height": round(bry - tly),
-            "tile_ranges": (xmin, ymin, xmax, ymax),
-        }
-
-    @staticmethod
-    def _stitch_image_tile(fut: asyncio.Future, fused_arr: np.ndarray, idx: int, idy: int, tile_width: int, tile_height: int) -> None:
-        """Internal asyncio callback used to mosaic each image tile into a larger array."""
-        img_arr = fut.result()
-        fused_arr[
-            :,
-            idy * tile_height : (idy + 1) * tile_height,
-            idx * tile_width : (idx + 1) * tile_width
-        ] = img_arr
-        if np.ma.is_masked(img_arr):
-            fused_arr.mask[
-                :,
-                idy * tile_height : (idy + 1) * tile_height,
-                idx * tile_width : (idx + 1) * tile_width
-            ] = img_arr.mask
+            # Apply mask
+            tile[1] = np.invert(np.broadcast_to(tile[1], tile[0].shape))
+            return np.ma.masked_array(*tile)
+        return tile[0]
 
     async def read(self, bounds: Tuple[float, float, float, float], shape: Tuple[int, int]) -> Union[np.ndarray, np.ma.masked_array]:
         """
         Perform a partial read.  All pixels within the specified bounding box are read from the image and the array is
         resampled to match the desired shape.
-
-        # TODO: Break this up into two methods for masked/not masked
         """
         # Determine which tiles intersect the request bounds
         ovr_level = self._get_overview_level(bounds, shape[1], shape[0])
         ifd = self.ifds[ovr_level]
-        tile_height = ifd.TileHeight.value
-        tile_width = ifd.TileWidth.value
-        img_tiles = self._calculate_image_tiles(bounds, ovr_level)
-        xmin, ymin, xmax, ymax = img_tiles["tile_ranges"]
+        img_tiles = self._calculate_image_tiles(
+            bounds,
+            tile_width=ifd.TileWidth.value,
+            tile_height=ifd.TileHeight.value,
+            band_count=ifd.bands,
+            ovr_level=ovr_level,
+            dtype=ifd.dtype
+        )
 
         # Request those tiles
-        tile_tasks = []
-        fused = np.zeros(
-            (
-                ifd.bands,
-                (ymax + 1 - ymin) * tile_height,
-                (xmax + 1 - xmin) * tile_width,
-            )
-        ).astype(ifd.dtype)
-        if self.is_masked:
-            fused = np.ma.masked_array(fused)
+        if config.HTTP_MERGE_CONSECUTIVE_RANGES:
+            img_arr = await self._request_merged_tiles(img_tiles)
+        else:
+            img_arr = await self._request_tiles(img_tiles)
 
-        for idx, xtile in enumerate(range(xmin, xmax + 1)):
-            for idy, ytile in enumerate(range(ymin, ymax + 1)):
-                get_tile_task = asyncio.create_task(
-                    self.get_tile(xtile, ytile, ovr_level)
-                )
-                get_tile_task.add_done_callback(
-                    partial(
-                        self._stitch_image_tile,
-                        fused_arr=fused,
-                        idx=idx,
-                        idy=idy,
-                        tile_width=tile_width,
-                        tile_height=tile_height,
-                    )
-                )
-                tile_tasks.append(get_tile_task)
-        await asyncio.gather(*tile_tasks)
+        # Postprocess the array (clip to bounds and resize to requested shape)
+        postprocessed = self._postprocess(img_arr, img_tiles, shape)
 
-        # Clip to request bounds
-        clipped = fused[
-            :,
-            img_tiles['tly']: img_tiles['tly'] + img_tiles['height'],
-            img_tiles['tlx']: img_tiles['tlx'] + img_tiles['width']
-        ]
-
-        # Resample to match request size
-        resized = resize(
-            clipped, output_shape=(ifd.bands, shape[0], shape[1]), preserve_range=True, anti_aliasing=True
-        ).astype(ifd.dtype)
-        if self.is_masked:
-            resized_mask = resize(
-                clipped.mask, output_shape=(ifd.bands, shape[0], shape[1]), preserve_range=True, anti_aliasing=True, order=0
-            )
-            resized = np.ma.masked_array(resized, resized_mask)
-
-        return resized
+        return postprocessed
 
     def create_tile_matrix_set(self, identifier: str = None) -> Dict[str, Any]:
         """Create an OGC TileMatrixSet where each TileMatrix corresponds to an overview"""

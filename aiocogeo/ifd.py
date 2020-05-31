@@ -1,19 +1,55 @@
+import asyncio
+import abc
 from dataclasses import dataclass
 import math
-from typing import Tuple
+from typing import Dict, Tuple, Union
 
 import numpy as np
 
 from .compression import Compression
 from .constants import COMPRESSIONS, INTERLEAVE, SAMPLE_DTYPES
+from .errors import TileNotFoundError
 from .filesystems import Filesystem
 from .tag import Tag
 
 @dataclass
-class BaseIFD:
+class IFD:
     next_ifd_offset: int
     tag_count: int
     _file_reader: Filesystem
+
+    @staticmethod
+    def _is_masked(tiff_tags: Dict[str, Tag]) -> bool:
+        """Check if an IFD is masked based on a dictionary of tiff tags"""
+        # # https://www.awaresystems.be/imaging/tiff/tifftags/newsubfiletype.html
+        # # https://gdal.org/drivers/raster/gtiff.html#internal-nodata-masks
+        if "NewSubfileType" in tiff_tags:
+            compression = tiff_tags['Compression'].value
+            photo_interp = tiff_tags['PhotometricInterpretation'].value
+            subfile_type = tiff_tags['NewSubfileType'].value
+            if (subfile_type[0] == 1 or subfile_type[2] == 1) and photo_interp == 4 and compression == 8:
+                return True
+        return False
+
+    @classmethod
+    async def read(cls, file_reader: Filesystem) -> Union["ImageIFD", "MaskIFD"]:
+        """Read the IFD"""
+        ifd_start = file_reader.tell()
+        tag_count = await file_reader.read(2, cast_to_int=True)
+        tiff_tags = {}
+
+        # Read tags
+        for idx in range(tag_count):
+            tag = await Tag.read(file_reader)
+            if tag:
+                tiff_tags[tag.name] = tag
+        file_reader.seek(ifd_start + (12 * tag_count) + 2)
+        next_ifd_offset = await file_reader.read(4, cast_to_int=True)
+
+        # Check if mask
+        if cls._is_masked(tiff_tags):
+            return MaskIFD(next_ifd_offset, tag_count, file_reader, **tiff_tags)
+        return ImageIFD(next_ifd_offset, tag_count, file_reader, **tiff_tags)
 
 @dataclass
 class RequiredTags:
@@ -41,7 +77,7 @@ class OptionalTags:
     ModelTiepointTag: Tag = None
 
 @dataclass
-class IFD(OptionalTags, Compression, RequiredTags, BaseIFD):
+class ImageIFD(OptionalTags, Compression, RequiredTags, IFD):
 
     @property
     def compression(self) -> str:
@@ -79,16 +115,15 @@ class IFD(OptionalTags, Compression, RequiredTags, BaseIFD):
             return False
         return True
 
-    @property
-    def is_mask(self) -> bool:
-        """Check if the IFD contains an internal mask"""
-        # # https://www.awaresystems.be/imaging/tiff/tifftags/newsubfiletype.html
-        # # https://gdal.org/drivers/raster/gtiff.html#internal-nodata-masks
-        if self.NewSubfileType:
-            if self.NewSubfileType.value[2] == 1 and self.PhotometricInterpretation.value == 4 and self.compression == "deflate":
-                return True
-        return False
-
+    async def _get_tile(self, x: int, y: int) -> np.ndarray:
+        """Read the requested tile from the IFD"""
+        idx = (y * self.tile_count[0]) + x
+        if idx > len(self.TileOffsets):
+            raise TileNotFoundError(f"Tile {x} {y} does not exist")
+        offset = self.TileOffsets[idx]
+        byte_count = self.TileByteCounts[idx] - 1
+        img_bytes = await self._file_reader.range_request(offset, byte_count)
+        return self._decompress(img_bytes)
 
     @property
     def tile_count(self) -> Tuple[int, int]:
@@ -104,17 +139,15 @@ class IFD(OptionalTags, Compression, RequiredTags, BaseIFD):
             if k not in ("next_ifd_offset", "tag_count", "_file_reader") and v:
                 yield v
 
-    @classmethod
-    async def read(cls, file_reader: Filesystem) -> "IFD":
-        """Read the IFD"""
-        ifd_start = file_reader.tell()
-        tag_count = await file_reader.read(2, cast_to_int=True)
-        tiff_tags = {}
-        # Read tags
-        for idx in range(tag_count):
-            tag = await Tag.read(file_reader)
-            if tag:
-                tiff_tags[tag.name] = tag
-        file_reader.seek(ifd_start + (12 * tag_count) + 2)
-        next_ifd_offset = await file_reader.read(4, cast_to_int=True)
-        return cls(next_ifd_offset, tag_count, file_reader, **tiff_tags)
+
+class MaskIFD(ImageIFD):
+
+    async def _get_tile(self, x: int, y: int) -> np.ndarray:
+        """Read the requested tile from the IFD"""
+        idx = (y * self.tile_count[0]) + x
+        if idx > len(self.TileOffsets):
+            raise TileNotFoundError(f"Tile {x} {y} does not exist")
+        offset = self.TileOffsets[idx]
+        byte_count = self.TileByteCounts[idx] - 1
+        img_bytes = await self._file_reader.range_request(offset, byte_count)
+        return self._decompress_mask(img_bytes)
