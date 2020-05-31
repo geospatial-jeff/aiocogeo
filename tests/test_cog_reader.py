@@ -207,7 +207,7 @@ async def test_cog_read_merge_range_requests(create_cog_reader, monkeypatch):
         bytes_requested = cog._file_reader._total_bytes_requested
 
     # Do a request with merged range requests
-    monkeypatch.setattr(config, "HTTP_MERGE_CONSECUTIVE_RANGES", "TRUE")
+    monkeypatch.setattr(config, "HTTP_MERGE_CONSECUTIVE_RANGES", True)
     async with create_cog_reader(infile) as cog:
         tile_data_merged = await cog.read(bounds=bounds, shape=shape)
         merged_request_count = cog._file_reader._total_requests
@@ -222,8 +222,6 @@ async def test_cog_read_merge_range_requests(create_cog_reader, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_cog_read_merge_range_requests_with_internal_nodata_mask(create_cog_reader, monkeypatch):
-    monkeypatch.setattr(config, "ENABLE_BLOCK_CACHE", False)
-
     infile = "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_masked.tif"
     bounds = (-10526706.9, 4445561.5, -10526084.1, 4446144.0)
     shape = (512, 512)
@@ -236,7 +234,7 @@ async def test_cog_read_merge_range_requests_with_internal_nodata_mask(create_co
         bytes_requested = cog._file_reader._total_bytes_requested
 
     # Do a request with merged range requests
-    monkeypatch.setattr(config, "HTTP_MERGE_CONSECUTIVE_RANGES", "TRUE")
+    monkeypatch.setattr(config, "HTTP_MERGE_CONSECUTIVE_RANGES", True)
     async with create_cog_reader(infile) as cog:
         tile_data_merged = await cog.read(bounds=bounds, shape=shape)
         # assert np.ma.is_masked(tile_data_merged)
