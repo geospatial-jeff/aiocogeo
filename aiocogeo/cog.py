@@ -145,6 +145,7 @@ class COGReader(PartialReadInterface):
             )
         return gt
 
+    @config_cache
     @cached(
         cache=Cache.MEMORY,
         key_builder=lambda fn,*args,**kwargs: f"{args[0].filepath}-{args[1]}-{args[2]}-{args[3]}"
