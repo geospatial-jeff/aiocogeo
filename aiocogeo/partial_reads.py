@@ -3,7 +3,6 @@ import asyncio
 import abc
 from dataclasses import dataclass
 from functools import partial
-from operator import add
 import math
 from typing import List, Tuple, Union
 
@@ -11,11 +10,14 @@ import affine
 import numpy as np
 from skimage.transform import resize
 
+from .filesystems import Filesystem
+from .ifd import ImageIFD, MaskIFD
+
 NpArrayType = Union[np.ndarray, np.ma.masked_array]
 
 
 @dataclass
-class ReadMetadata:
+class TileMetadata:
     # top left corner of the partial read
     tlx: float
     tly: float
@@ -107,7 +109,7 @@ class PartialReadBase(abc.ABC):
         band_count: int,
         ovr_level: int,
         dtype: np.dtype,
-    ) -> ReadMetadata:
+    ) -> TileMetadata:
         """
         Internal method to calculate which images tiles need to be requested for a partial read.  Also returns all of
         the required metadata about the image tiles to perform a partial read
@@ -140,7 +142,7 @@ class PartialReadBase(abc.ABC):
         inv_fused_gt = ~fused_gt
         xorigin, yorigin = [round(v) for v in inv_fused_gt * (bounds[0], bounds[3])]
 
-        return ReadMetadata(
+        return TileMetadata(
             tlx=xorigin,
             tly=yorigin,
             width=round(brx - tlx),
@@ -156,7 +158,7 @@ class PartialReadBase(abc.ABC):
             ovr_level=ovr_level,
         )
 
-    def _init_array(self, img_tiles: ReadMetadata) -> NpArrayType:
+    def _init_array(self, img_tiles: TileMetadata) -> NpArrayType:
         """
         Initialize an empty numpy array with the same shape of the partial read.  Individual blocks are mosaiced into
         this array as they are requested
@@ -217,7 +219,7 @@ class PartialReadBase(abc.ABC):
                 idx * tile_width : (idx + 1) * tile_width,
             ] = arr.mask
 
-    async def _request_tiles(self, img_tiles: ReadMetadata) -> NpArrayType:
+    async def _request_tiles(self, img_tiles: TileMetadata) -> NpArrayType:
         """Concurrently request the image tiles and mosaic into a larger array"""
         img_arr = self._init_array(img_tiles)
         tile_tasks = []
@@ -240,7 +242,7 @@ class PartialReadBase(abc.ABC):
         await asyncio.gather(*tile_tasks)
         return img_arr
 
-    def _clip_array(self, arr: NpArrayType, img_tiles: ReadMetadata) -> NpArrayType:
+    def _clip_array(self, arr: NpArrayType, img_tiles: TileMetadata) -> NpArrayType:
         """Clip a numpy array to the extent of the parial read via slicing"""
         return arr[
             :,
@@ -249,7 +251,7 @@ class PartialReadBase(abc.ABC):
         ]
 
     def _resample(
-        self, clipped: NpArrayType, img_tiles: ReadMetadata, out_shape: Tuple[int, int]
+        self, clipped: NpArrayType, img_tiles: TileMetadata, out_shape: Tuple[int, int]
     ) -> NpArrayType:
         """Resample a numpy array to the desired shape"""
         resized = resize(
@@ -270,7 +272,7 @@ class PartialReadBase(abc.ABC):
         return resized
 
     def _postprocess(
-        self, arr: NpArrayType, img_tiles: ReadMetadata, out_shape: Tuple[int, int]
+        self, arr: NpArrayType, img_tiles: TileMetadata, out_shape: Tuple[int, int]
     ) -> NpArrayType:
         """Wrapper around ``_clip_array`` and ``_resample`` to postprocess the partial read"""
         return self._resample(
@@ -280,22 +282,33 @@ class PartialReadBase(abc.ABC):
 
 @dataclass
 class PartialReadInterface(PartialReadBase):
+
     @staticmethod
-    def _extract_tile(ifd, img_bytes, tile_index, offset):
+    def _extract_tile(
+        ifd: Union[ImageIFD, MaskIFD], img_bytes: bytes, tile_index: int, offset: int
+    ) -> bytes:
+        """Extract a tile from the merged range request"""
         byte_count = ifd.TileByteCounts[tile_index]
         tile_start = ifd.TileOffsets[tile_index] - offset
         tile_bytes = img_bytes[tile_start : tile_start + byte_count]
         return tile_bytes
 
     @staticmethod
-    def _merge_range_requests(ifd, tile_indices, offset):
+    def _merge_range_requests(
+        ifd: Union[ImageIFD, MaskIFD], tile_indices: List[int], offset: int
+    ) -> Tuple[int, int]:
+        """Determine offset and byte count for a range request across given tile indices"""
         byte_count = (
             ifd.TileOffsets[max(tile_indices)] + ifd.TileByteCounts[max(tile_indices)]
         )
         return (offset, byte_count - offset - 1)
 
-    async def _request_merged_tile(self, arr, indices, img_tiles: ReadMetadata):
+    async def _request_merged_tile(
+        self, arr: NpArrayType, indices: List[Tuple[int, int, int]], img_tiles: TileMetadata
+    ) -> None:
+        """Request a range, extract/decompress/mosaic each tile"""
         tile_indices = [idx[0] for idx in indices]
+        # Request image data
         futures = []
         ifd = self.ifds[img_tiles.ovr_level]
         offset = ifd.TileOffsets[min(tile_indices)]
@@ -307,6 +320,7 @@ class PartialReadInterface(PartialReadBase):
         futures.append(tile_task)
 
         if self.is_masked:
+            # Request mask data
             mask_ifd = self.mask_ifds[img_tiles.ovr_level]
             mask_offset = mask_ifd.TileOffsets[min(tile_indices)]
             mask_task = asyncio.create_task(
@@ -318,25 +332,34 @@ class PartialReadInterface(PartialReadBase):
 
         response = await asyncio.gather(*futures)
 
+        # Compression is applied to each block, so we need to extract and decompress each tile in the merged request
+        # TODO: Parallelize
         for (tile_idx, idx, idy) in indices:
+            # Extract the tile
             tile_bytes = self._extract_tile(ifd, response[0], tile_idx, offset)
+            # Decompress the tile
             decoded = ifd._decompress(tile_bytes)
             if self.is_masked:
+                # Extract mask
                 mask_ifd = self.mask_ifds[img_tiles.ovr_level]
                 mask_bytes = self._extract_tile(
                     mask_ifd, response[1], tile_idx, mask_offset
                 )
+                # Decompress and apply mask
                 mask_decoded = ifd._decompress_mask(mask_bytes)
                 decoded = np.ma.masked_array(
                     decoded, np.invert(np.broadcast_to(mask_decoded, decoded.shape))
                 )
+            # Mosaic
             self._stitch_image_tile(
                 decoded, arr, idx, idy, img_tiles.tile_width, img_tiles.tile_height
             )
 
-    async def _request_merged_tiles(self, img_tiles: ReadMetadata) -> NpArrayType:
+    async def _request_merged_tiles(self, img_tiles: TileMetadata) -> NpArrayType:
+        """Do a partial read with merged range requests"""
         futures = []
         ifd = self.ifds[img_tiles.ovr_level]
+        # Create the array
         img_arr = self._init_array(img_tiles)
         for idy, ytile in enumerate(range(img_tiles.ymin, img_tiles.ymax + 1)):
             # Merge requests across rows
@@ -344,6 +367,7 @@ class PartialReadInterface(PartialReadBase):
             for idx, xtile in enumerate(range(img_tiles.xmin, img_tiles.xmax + 1)):
                 tile_index = (ytile * ifd.tile_count[0]) + xtile
                 indices.append((tile_index, idx, idy))
+            # Do the request
             merged_tile_task = asyncio.create_task(
                 self._request_merged_tile(img_arr, indices, img_tiles)
             )
