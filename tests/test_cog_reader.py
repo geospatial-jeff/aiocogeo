@@ -297,7 +297,6 @@ async def test_block_cache_enabled(create_cog_reader, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_block_cache_disabled(create_cog_reader):
-
     infile = "https://async-cog-reader-test-data.s3.amazonaws.com/lzw_cog.tif"
     async with create_cog_reader(infile) as cog:
         await cog.get_tile(0,0,0)
@@ -306,6 +305,15 @@ async def test_block_cache_disabled(create_cog_reader):
         await cog.get_tile(0,0,0)
         assert cog.requests['count'] == request_count + 1
 
+
+@pytest.mark.asyncio
+async def test_cog_request_metadata(create_cog_reader):
+    infile = "https://async-cog-reader-test-data.s3.amazonaws.com/lzw_cog.tif"
+    async with create_cog_reader(infile) as cog:
+        request_metadata = cog.requests
+
+    assert len(request_metadata['ranges']) == request_metadata['count']
+    assert sum([end-start+1 for (start,end) in request_metadata['ranges']]) == request_metadata['byte_count']
 
 
 @pytest.mark.asyncio
