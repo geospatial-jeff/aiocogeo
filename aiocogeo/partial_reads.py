@@ -263,7 +263,7 @@ class PartialReadBase(abc.ABC):
                 clipped.mask,
                 output_shape=(img_tiles.bands, out_shape[0], out_shape[1]),
                 preserve_range=True,
-                anti_aliasing=True,
+                anti_aliasing=False,
                 order=0,
             )
             resized = np.ma.masked_array(resized, resized_mask)

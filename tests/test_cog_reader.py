@@ -191,7 +191,7 @@ async def test_cog_read_internal_mask(create_cog_reader):
         # Confirm proportion of masked pixels
         valid_data = tile[tile.mask == False]
         frequencies = np.asarray(np.unique(valid_data, return_counts=True)).T
-        assert pytest.approx(frequencies[0][1] / np.prod(tile.shape), abs=0.004) == 0
+        assert pytest.approx(frequencies[0][1] / np.prod(tile.shape), abs=0.002) == 0
 
 
 @pytest.mark.asyncio
