@@ -1,12 +1,18 @@
 import abc
+import asyncio
 from dataclasses import dataclass
+import logging
 from urllib.parse import urlsplit
 
 import aioboto3
 import aiofiles
 import aiohttp
 
-from .config import INGESTED_BYTES_AT_OPEN
+from . import config
+
+logger = logging.getLogger(__name__)
+logger.setLevel(config.LOG_LEVEL)
+
 
 @dataclass
 class Filesystem(abc.ABC):
@@ -51,7 +57,7 @@ class Filesystem(abc.ABC):
         Read from the current offset (self._offset) to the specified offset and optionall cast the result to int
         """
         if self._offset + offset > len(self.data):
-            self.data += await self.range_request(len(self.data), INGESTED_BYTES_AT_OPEN)
+            self.data += await self.range_request(len(self.data), config.INGESTED_BYTES_AT_OPEN)
         data = self.data[self._offset : self._offset + offset]
         self.incr(offset)
         order = "little" if self._endian == "<" else "big"
@@ -85,8 +91,33 @@ class HttpFilesystem(Filesystem):
         await self.session.close()
 
     async def __aenter__(self):
-        self.session = aiohttp.ClientSession()
+        trace_config = aiohttp.TraceConfig()
+        trace_config.on_request_start.append((self._on_request_start))
+        trace_config.on_request_end.append(self._on_request_end)
+        self.session = aiohttp.ClientSession(trace_configs=[trace_config])
         return self
+
+    async def _on_request_start(self, session, trace_config_ctx, params):
+        trace_config_ctx.start = asyncio.get_event_loop().time()
+        if config.VERBOSE_LOGS:
+            debug_statement = (
+                f"\n > {params.method} {params.url.path} HTTP/{session.version.major}.{session.version.minor}"
+                f"\n   Host: {params.url.host}"
+                f"\n   Range: {params.headers['Range']}"
+            )
+        else:
+            debug_statement = f" STARTING REQUEST: {params.method} {params.url}"
+        logger.debug(debug_statement)
+
+    async def _on_request_end(self, session, trace_config_ctx, params):
+        elapsed = round(asyncio.get_event_loop().time() - trace_config_ctx.start, 3)
+        if config.VERBOSE_LOGS:
+            debug_statement = [f"\n < HTTP/{session.version.major}.{session.version.minor}"]
+            debug_statement += [f"\n < {k}: {v}" for (k, v) in params.response.headers.items()]
+            debug_statement.append(f"\n < Duration: {elapsed}")
+        else:
+            debug_statement = f" FINISHED REQUEST in {elapsed} seconds: <STATUS {params.response.status}> ({params.response.headers['Content-Range']})"
+        logger.debug("".join(debug_statement))
 
 
 @dataclass
