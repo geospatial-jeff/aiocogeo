@@ -200,7 +200,10 @@ class COGReader(PartialReadInterface):
         )
 
         # Request those tiles
-        img_arr = await self._request_tiles(img_tiles)
+        if config.HTTP_MERGE_CONSECUTIVE_RANGES == "TRUE":
+            img_arr = await self._request_merged_tiles(img_tiles)
+        else:
+            img_arr = await self._request_tiles(img_tiles)
 
         # Postprocess the array (clip to bounds and resize to requested shape)
         postprocessed = self._postprocess(img_arr, img_tiles, shape)

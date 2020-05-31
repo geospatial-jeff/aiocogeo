@@ -195,6 +195,60 @@ async def test_cog_read_internal_mask(create_cog_reader):
 
 
 @pytest.mark.asyncio
+async def test_cog_read_merge_range_requests(create_cog_reader, monkeypatch):
+    infile = "https://async-cog-reader-test-data.s3.amazonaws.com/lzw_cog.tif"
+    bounds = (368461,3770591,368796,3770921)
+    shape = (512, 512)
+
+    # Do a request without merged range requests
+    async with create_cog_reader(infile) as cog:
+        tile_data = await cog.read(bounds=bounds, shape=shape)
+        request_count = cog._file_reader._total_requests
+        bytes_requested = cog._file_reader._total_bytes_requested
+
+    # Do a request with merged range requests
+    monkeypatch.setattr(config, "HTTP_MERGE_CONSECUTIVE_RANGES", "TRUE")
+    async with create_cog_reader(infile) as cog:
+        tile_data_merged = await cog.read(bounds=bounds, shape=shape)
+        merged_request_count = cog._file_reader._total_requests
+        merged_bytes_requested = cog._file_reader._total_bytes_requested
+
+    # Confirm we got the same tile with fewer requests
+    assert merged_request_count < request_count
+    assert bytes_requested == merged_bytes_requested
+    assert tile_data.all() == tile_data_merged.all()
+    assert tile_data.shape == tile_data_merged.shape
+
+
+@pytest.mark.asyncio
+async def test_cog_read_merge_range_requests_with_internal_nodata_mask(create_cog_reader, monkeypatch):
+    infile = "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_masked.tif"
+    bounds = (-10526706.9, 4445561.5, -10526084.1, 4446144.0)
+    shape = (512, 512)
+
+    # Do a request without merged range requests
+    async with create_cog_reader(infile) as cog:
+        tile_data = await cog.read(bounds=bounds, shape=shape)
+        # assert np.ma.is_masked(tile_data)
+        request_count = cog._file_reader._total_requests
+        bytes_requested = cog._file_reader._total_bytes_requested
+
+    # Do a request with merged range requests
+    monkeypatch.setattr(config, "HTTP_MERGE_CONSECUTIVE_RANGES", "TRUE")
+    async with create_cog_reader(infile) as cog:
+        tile_data_merged = await cog.read(bounds=bounds, shape=shape)
+        # assert np.ma.is_masked(tile_data_merged)
+        merged_request_count = cog._file_reader._total_requests
+        merged_bytes_requested = cog._file_reader._total_bytes_requested
+
+    # Confirm we got the same tile with fewer requests
+    assert merged_request_count < request_count
+    assert bytes_requested == merged_bytes_requested
+    assert tile_data.all() == tile_data_merged.all()
+    assert tile_data.shape == tile_data_merged.shape
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "width,height", [(500, 500), (1000, 1000), (5000, 5000), (10000, 10000)]
 )

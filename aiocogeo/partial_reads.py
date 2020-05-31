@@ -3,6 +3,7 @@ import asyncio
 import abc
 from dataclasses import dataclass
 from functools import partial
+from operator import add
 import math
 from typing import List, Tuple, Union
 
@@ -38,7 +39,7 @@ class ReadMetadata:
 
 
 @dataclass
-class PartialReadInterface(abc.ABC):
+class PartialReadBase(abc.ABC):
     @property
     @abc.abstractmethod
     def is_masked(self) -> bool:
@@ -170,7 +171,7 @@ class PartialReadInterface(abc.ABC):
         return fused
 
     @staticmethod
-    def _stitch_image_tile(
+    def _stitch_image_tile_callback(
         fut: asyncio.Future,
         fused_arr: NpArrayType,
         idx: int,
@@ -192,6 +193,28 @@ class PartialReadInterface(abc.ABC):
                 idx * tile_width : (idx + 1) * tile_width,
             ] = img_arr.mask
 
+    @staticmethod
+    def _stitch_image_tile(
+        arr: NpArrayType,
+        fused_arr: NpArrayType,
+        idx: int,
+        idy: int,
+        tile_width: int,
+        tile_height: int,
+    ) -> None:
+        """Mosaic an array into a larger array"""
+        fused_arr[
+        :,
+        idy * tile_height: (idy + 1) * tile_height,
+        idx * tile_width: (idx + 1) * tile_width,
+        ] = arr
+        if np.ma.is_masked(arr):
+            fused_arr.mask[
+            :,
+            idy * tile_height: (idy + 1) * tile_height,
+            idx * tile_width: (idx + 1) * tile_width,
+            ] = arr.mask
+
     async def _request_tiles(self, img_tiles: ReadMetadata) -> NpArrayType:
         """Concurrently request the image tiles and mosaic into a larger array"""
         img_arr = self._init_array(img_tiles)
@@ -203,7 +226,7 @@ class PartialReadInterface(abc.ABC):
                 )
                 get_tile_task.add_done_callback(
                     partial(
-                        self._stitch_image_tile,
+                        self._stitch_image_tile_callback,
                         fused_arr=img_arr,
                         idx=idx,
                         idy=idy,
@@ -251,3 +274,62 @@ class PartialReadInterface(abc.ABC):
             img_tiles=img_tiles,
             out_shape=out_shape
         )
+
+
+@dataclass
+class PartialReadInterface(PartialReadBase):
+
+
+    async def _request_merged_tile(self, arr, indices, img_tiles: ReadMetadata):
+        tile_indices = [idx[0] for idx in indices]
+        futures = []
+        ifd = self.ifds[img_tiles.ovr_level]
+        offset = ifd.TileOffsets[min(tile_indices)]
+        byte_count = ifd.TileOffsets[max(tile_indices)] + ifd.TileByteCounts[max(tile_indices)]
+        tile_task = asyncio.create_task(
+            self._file_reader.range_request(offset, byte_count - offset - 1)
+        )
+        futures.append(tile_task)
+
+        if self.is_masked:
+            mask_ifd = self.mask_ifds[img_tiles.ovr_level]
+            mask_offset = mask_ifd.TileOffsets[min(tile_indices)]
+            byte_count = mask_ifd.TileOffsets[max(tile_indices)] + mask_ifd.TileByteCounts[max(tile_indices)]
+            mask_task = asyncio.create_task(
+                self._file_reader.range_request(mask_offset, byte_count - mask_offset - 1)
+            )
+            futures.append(mask_task)
+
+        response = await asyncio.gather(*futures)
+
+        for (tile_idx, idx, idy) in indices:
+            tile_byte_count = ifd.TileByteCounts[tile_idx]
+            tile_start = ifd.TileOffsets[tile_idx] - offset
+            tile_bytes = response[0][tile_start:tile_start+tile_byte_count]
+            decoded = ifd._decompress(tile_bytes)
+            if self.is_masked:
+                mask_ifd = self.mask_ifds[img_tiles.ovr_level]
+                mask_byte_count = mask_ifd.TileByteCounts[tile_idx]
+                mask_start = mask_ifd.TileOffsets[tile_idx] - mask_offset
+                mask_bytes = response[1][mask_start:mask_start + mask_byte_count]
+                mask_decoded = ifd._decompress_mask(mask_bytes)
+                decoded = np.ma.masked_array(decoded, np.invert(np.broadcast_to(mask_decoded, decoded.shape)))
+            self._stitch_image_tile(decoded, arr, idx, idy, img_tiles.tile_width, img_tiles.tile_height)
+
+
+    async def _request_merged_tiles(self, img_tiles: ReadMetadata) -> NpArrayType:
+        futures = []
+        ifd = self.ifds[img_tiles.ovr_level]
+        img_arr = self._init_array(img_tiles)
+        for idy, ytile in enumerate(range(img_tiles.ymin, img_tiles.ymax + 1)):
+            # Merge requests across rows
+            indices = []
+            for idx, xtile in enumerate(range(img_tiles.xmin, img_tiles.xmax + 1)):
+                tile_index = (ytile * ifd.tile_count[0]) + xtile
+                indices.append((tile_index, idx, idy))
+            merged_tile_task = asyncio.create_task(
+                self._request_merged_tile(img_arr, indices, img_tiles)
+            )
+            futures.append(merged_tile_task)
+        await asyncio.gather(*futures)
+        return img_arr
