@@ -1,4 +1,5 @@
-# aiocogeo [![CircleCI](https://circleci.com/gh/geospatial-jeff/aiocogeo/tree/master.svg?style=svg)](https://circleci.com/gh/geospatial-jeff/aiocogeo/tree/master)
+# aiocogeo [![CircleCI](https://circleci.com/gh/geospatial-jeff/aiocogeo/tree/master.svg?style=svg)](https://circleci.com/gh/geospatial-jeff/aiocogeo/tree/master)[![codecov](https://codecov.io/gh/geospatial-jeff/aiocogeo/branch/master/graph/badge.svg)](https://codecov.io/gh/geospatial-jeff/aiocogeo)
+
 
 
 ## Usage
