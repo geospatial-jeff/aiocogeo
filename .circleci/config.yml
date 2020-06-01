@@ -32,5 +32,4 @@ jobs:
           command: python setup.py pytest
 
       - codecov/upload:
-          name: upload code coverage
           file: ".coverage"
