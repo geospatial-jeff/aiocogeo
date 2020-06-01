@@ -307,8 +307,8 @@ async def test_block_cache_disabled(create_cog_reader):
 
 
 @pytest.mark.asyncio
-async def test_cog_request_metadata(create_cog_reader):
-    infile = "https://async-cog-reader-test-data.s3.amazonaws.com/lzw_cog.tif"
+@pytest.mark.parametrize("infile", TEST_DATA)
+async def test_cog_request_metadata(create_cog_reader, infile):
     async with create_cog_reader(infile) as cog:
         request_metadata = cog.requests
 

@@ -2,6 +2,7 @@ import abc
 import asyncio
 from dataclasses import dataclass
 import logging
+import time
 from urllib.parse import urlsplit
 
 import aioboto3
@@ -13,6 +14,16 @@ from . import config
 logger = logging.getLogger(__name__)
 logger.setLevel(config.LOG_LEVEL)
 
+
+if config.VERBOSE_LOGS:
+    # Default to boto3 debug logs if verbose logging is enabled
+    s3_log_level = config.LOG_LEVEL
+else:
+    s3_log_level = logging.ERROR
+
+logging.getLogger("aiobotocore").setLevel(s3_log_level)
+logging.getLogger("botocore").setLevel(s3_log_level)
+logging.getLogger("aioboto3").setLevel(s3_log_level)
 
 @dataclass
 class Filesystem(abc.ABC):
@@ -110,16 +121,16 @@ class HttpFilesystem(Filesystem):
 
     async def _on_request_end(self, session, trace_config_ctx, params):
         elapsed = round(asyncio.get_event_loop().time() - trace_config_ctx.start, 3)
-        content_range = params.response.headers['Content-Range'].split(' ')[-1].split('/')[0]
+        content_range = params.response.headers['Content-Range']
         self._total_bytes_requested += int(params.response.headers["Content-Length"])
         self._total_requests += 1
-        self._requested_ranges.append(tuple([int(v) for v in content_range.split('-')]))
+        self._requested_ranges.append(tuple([int(v) for v in content_range.split(' ')[-1].split('/')[0].split('-')]))
         if config.VERBOSE_LOGS:
             debug_statement = [f"\n < HTTP/{session.version.major}.{session.version.minor}"]
             debug_statement += [f"\n < {k}: {v}" for (k, v) in params.response.headers.items()]
             debug_statement.append(f"\n < Duration: {elapsed}")
         else:
-            debug_statement = f" FINISHED REQUEST in {elapsed} seconds: <STATUS {params.response.status}> ({params.response.headers['Content-Range']})"
+            debug_statement = f" FINISHED REQUEST in {elapsed} seconds: <STATUS {params.response.status}> ({content_range})"
         logger.debug("".join(debug_statement))
 
 
@@ -128,8 +139,9 @@ class LocalFilesystem(Filesystem):
 
     async def range_request(self, start: int, offset: int) -> bytes:
         await self.file.seek(start)
-        self._total_bytes_requested += (offset - start)
+        self._total_bytes_requested += (offset - start + 1)
         self._total_requests += 1
+        self._requested_ranges.append((start, start+offset))
         return await self.file.read(offset+1)
 
     async def _close(self) -> None:
@@ -144,9 +156,16 @@ class LocalFilesystem(Filesystem):
 class S3Filesystem(Filesystem):
 
     async def range_request(self, start: int, offset: int) -> bytes:
+        begin = time.time()
         req = await self.object.get(Range=f'bytes={start}-{start+offset}')
+        elapsed = time.time() - begin
+        content_range = req['ResponseMetadata']['HTTPHeaders']['content-range']
+        if not config.VERBOSE_LOGS:
+            status = req['ResponseMetadata']['HTTPStatusCode']
+            logger.debug(f" FINISHED REQUEST in {elapsed} seconds: <STATUS {status}> ({content_range})")
         self._total_bytes_requested += int(req['ResponseMetadata']['HTTPHeaders']['content-length'])
         self._total_requests += 1
+        self._requested_ranges.append(tuple([int(v) for v in content_range.split(' ')[-1].split('/')[0].split('-')]))
         data = await req['Body'].read()
         return data
 
