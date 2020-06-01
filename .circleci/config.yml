@@ -32,4 +32,4 @@ jobs:
           command: python setup.py pytest
 
       - codecov/upload:
-          file: ".coverage"
+          file: "coverage.xml"
