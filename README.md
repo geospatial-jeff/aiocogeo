@@ -130,6 +130,8 @@ Configuration options are exposed through environment variables:
 - **INGESTED_BYTES_AT_OPEN** - defines the number of bytes in the first GET request at file opening (defaults to 16KB)
 - **ENABLE_BLOCK_CACHE** - determines if internal blocks are cached in memory (defaults to TRUE)
 - **HTTP_MERGE_CONSECUTIVE_RANGES** - determines if consecutive ranges are merged into a single request (defaults to FALSE)
+- **LOG_LEVEL** - determines the log level used by the package (defaults to ERROR)
+- **VERBOSE_LOGS** - enables verbose logging, designed for use when `LOG_LEVEL=DEBUG` (defaults to FALSE)
 
 Refer to [`aiocogeo/config.py`](https://github.com/geospatial-jeff/aiocogeo/blob/master/aiocogeo/config.py) for more details about configuration options.
 

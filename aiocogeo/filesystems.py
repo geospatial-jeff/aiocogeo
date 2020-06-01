@@ -1,12 +1,29 @@
 import abc
+import asyncio
 from dataclasses import dataclass
+import logging
+import time
 from urllib.parse import urlsplit
 
 import aioboto3
 import aiofiles
 import aiohttp
 
-from .config import INGESTED_BYTES_AT_OPEN
+from . import config
+
+logger = logging.getLogger(__name__)
+logger.setLevel(config.LOG_LEVEL)
+
+
+if config.VERBOSE_LOGS:
+    # Default to boto3 debug logs if verbose logging is enabled
+    s3_log_level = config.LOG_LEVEL
+else:
+    s3_log_level = logging.ERROR
+
+logging.getLogger("aiobotocore").setLevel(s3_log_level)
+logging.getLogger("botocore").setLevel(s3_log_level)
+logging.getLogger("aioboto3").setLevel(s3_log_level)
 
 @dataclass
 class Filesystem(abc.ABC):
@@ -18,6 +35,7 @@ class Filesystem(abc.ABC):
         self._endian: str = "<"
         self._total_bytes_requested: int = 0
         self._total_requests: int = 0
+        self._requested_ranges = []
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         ...
@@ -51,7 +69,7 @@ class Filesystem(abc.ABC):
         Read from the current offset (self._offset) to the specified offset and optionall cast the result to int
         """
         if self._offset + offset > len(self.data):
-            self.data += await self.range_request(len(self.data), INGESTED_BYTES_AT_OPEN)
+            self.data += await self.range_request(len(self.data), config.INGESTED_BYTES_AT_OPEN)
         data = self.data[self._offset : self._offset + offset]
         self.incr(offset)
         order = "little" if self._endian == "<" else "big"
@@ -77,26 +95,58 @@ class HttpFilesystem(Filesystem):
         range_header = {"Range": f"bytes={start}-{start + offset}"}
         async with self.session.get(self.filepath, headers=range_header) as cog:
             data = await cog.content.read()
-            self._total_bytes_requested += int(cog.headers["Content-Length"])
-            self._total_requests += 1
         return data
 
     async def _close(self) -> None:
         await self.session.close()
 
     async def __aenter__(self):
-        self.session = aiohttp.ClientSession()
+        trace_config = aiohttp.TraceConfig()
+        trace_config.on_request_start.append((self._on_request_start))
+        trace_config.on_request_end.append(self._on_request_end)
+        self.session = aiohttp.ClientSession(trace_configs=[trace_config])
         return self
+
+    async def _on_request_start(self, session, trace_config_ctx, params):
+        trace_config_ctx.start = asyncio.get_event_loop().time()
+        if config.VERBOSE_LOGS:
+            debug_statement = (
+                f"\n > {params.method} {params.url.path} HTTP/{session.version.major}.{session.version.minor}"
+                f"\n   Host: {params.url.host}"
+                f"\n   Range: {params.headers['Range']}"
+            )
+        else:
+            debug_statement = f" STARTING REQUEST: {params.method} {params.url}"
+        logger.debug(debug_statement)
+
+    async def _on_request_end(self, session, trace_config_ctx, params):
+        elapsed = round(asyncio.get_event_loop().time() - trace_config_ctx.start, 3)
+        content_range = params.response.headers['Content-Range']
+        self._total_bytes_requested += int(params.response.headers["Content-Length"])
+        self._total_requests += 1
+        self._requested_ranges.append(tuple([int(v) for v in content_range.split(' ')[-1].split('/')[0].split('-')]))
+        if config.VERBOSE_LOGS:
+            debug_statement = [f"\n < HTTP/{session.version.major}.{session.version.minor}"]
+            debug_statement += [f"\n < {k}: {v}" for (k, v) in params.response.headers.items()]
+            debug_statement.append(f"\n < Duration: {elapsed}")
+        else:
+            debug_statement = f" FINISHED REQUEST in {elapsed} seconds: <STATUS {params.response.status}> ({content_range})"
+        logger.debug("".join(debug_statement))
 
 
 @dataclass
 class LocalFilesystem(Filesystem):
 
     async def range_request(self, start: int, offset: int) -> bytes:
+        begin = time.time()
         await self.file.seek(start)
-        self._total_bytes_requested += (offset - start)
+        data = await self.file.read(offset+1)
+        elapsed = time.time() - begin
+        self._total_bytes_requested += (offset - start + 1)
         self._total_requests += 1
-        return await self.file.read(offset+1)
+        self._requested_ranges.append((start, start+offset))
+        logger.debug(f" FINISHED REQUEST in {elapsed} seconds: <STATUS 206> ({start}-{start+offset})")
+        return data
 
     async def _close(self) -> None:
         await self.file.close()
@@ -110,9 +160,16 @@ class LocalFilesystem(Filesystem):
 class S3Filesystem(Filesystem):
 
     async def range_request(self, start: int, offset: int) -> bytes:
+        begin = time.time()
         req = await self.object.get(Range=f'bytes={start}-{start+offset}')
+        elapsed = time.time() - begin
+        content_range = req['ResponseMetadata']['HTTPHeaders']['content-range']
+        if not config.VERBOSE_LOGS:
+            status = req['ResponseMetadata']['HTTPStatusCode']
+            logger.debug(f" FINISHED REQUEST in {elapsed} seconds: <STATUS {status}> ({content_range})")
         self._total_bytes_requested += int(req['ResponseMetadata']['HTTPHeaders']['content-length'])
         self._total_requests += 1
+        self._requested_ranges.append(tuple([int(v) for v in content_range.split(' ')[-1].split('/')[0].split('-')]))
         data = await req['Body'].read()
         return data
 

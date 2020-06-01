@@ -1,8 +1,14 @@
 """Configurable values exposed to user as environment variables"""
+import logging
 import os
 
 # Changes the log level
 LOG_LEVEL: str = os.getenv("LOG_LEVEL", "ERROR")
+
+logging.basicConfig(level=LOG_LEVEL)
+
+# Enables verbose logging.  It is recommended to also use ``LOG_LEVEL=DEBUG``.
+VERBOSE_LOGS: bool = False if os.getenv("VERBOSE_LOGS", "FALSE") == "FALSE" else True
 
 # https://gdal.org/user/virtual_file_systems.html#vsicurl-http-https-ftp-files-random-access
 # Defines the number of bytes read in the first GET request at file opening

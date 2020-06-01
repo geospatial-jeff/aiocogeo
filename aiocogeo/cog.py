@@ -1,5 +1,6 @@
 import asyncio
 from dataclasses import dataclass, field
+import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from urllib.parse import urljoin
 import uuid
@@ -15,6 +16,8 @@ from .filesystems import Filesystem
 from .ifd import IFD, ImageIFD, MaskIFD
 from .partial_reads import PartialReadInterface
 
+logger = logging.getLogger(__name__)
+logger.setLevel(config.LOG_LEVEL)
 
 def config_cache(fn: Callable) -> Callable:
     """
@@ -106,6 +109,15 @@ class COGReader(PartialReadInterface):
         return [2 ** (ifd + 1) for ifd in range(len(self.ifds) - 1)]
 
     @property
+    def requests(self) -> Dict[str, Union[int, List[Tuple[int]]]]:
+        """Return statistics about http requests made during context lifecycle"""
+        return {
+            'count': self._file_reader._total_requests,
+            'byte_count': self._file_reader._total_bytes_requested,
+            'ranges': self._file_reader._requested_ranges
+        }
+
+    @property
     def is_masked(self) -> bool:
         """Check if the image has an internal mask"""
         return True if self.mask_ifds else False
@@ -115,6 +127,7 @@ class COGReader(PartialReadInterface):
         next_ifd_offset = 1
         while next_ifd_offset != 0:
             ifd = await IFD.read(self._file_reader)
+            logger.debug(f" Opened {ifd.ImageHeight.value}x{ifd.ImageWidth.value} overview")
             next_ifd_offset = ifd.next_ifd_offset
             self._file_reader.seek(next_ifd_offset)
 
