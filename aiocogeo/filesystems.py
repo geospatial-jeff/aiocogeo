@@ -138,11 +138,15 @@ class HttpFilesystem(Filesystem):
 class LocalFilesystem(Filesystem):
 
     async def range_request(self, start: int, offset: int) -> bytes:
+        begin = time.time()
         await self.file.seek(start)
+        data = await self.file.read(offset+1)
+        elapsed = time.time() - begin
         self._total_bytes_requested += (offset - start + 1)
         self._total_requests += 1
         self._requested_ranges.append((start, start+offset))
-        return await self.file.read(offset+1)
+        logger.debug(f" FINISHED REQUEST in {elapsed} seconds: <STATUS 206> ({start}-{start+offset})")
+        return data
 
     async def _close(self) -> None:
         await self.file.close()
