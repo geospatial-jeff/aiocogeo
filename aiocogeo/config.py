@@ -7,7 +7,7 @@ LOG_LEVEL: str = os.getenv("LOG_LEVEL", "ERROR")
 
 logging.basicConfig(level=LOG_LEVEL)
 
-# Enables verbose logging
+# Enables verbose logging.  It is recommended to also use ``LOG_LEVEL=DEBUG``.
 VERBOSE_LOGS: bool = False if os.getenv("VERBOSE_LOGS", "FALSE") == "FALSE" else True
 
 # https://gdal.org/user/virtual_file_systems.html#vsicurl-http-https-ftp-files-random-access
