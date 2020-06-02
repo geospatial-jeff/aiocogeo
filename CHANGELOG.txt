@@ -1,0 +1,19 @@
+0.0.3 (2020-06-01)
+------------------
+- Add several configuration options as environment variables:
+   - ``INGESTED_BYTES_AT_OPEN`` - determines the number of bytes in the first GET request at file opening (#27)
+   - ``ENABLE_BLOCK_CACHE`` - determines if internal blocks are cached in memory (#35)
+   - ``HTTP_MERGE_CONSECUTIVE_RANGES`` - determines if consecutive ranges are merged into a single request (#29, #33)
+   - ``LOG_LEVEL`` - determines the log level used by the library (#36)
+   - ``VERBOSE_LOGS`` - enables verbose logging (#36)
+- Fix bug where internal nodata masks were not returned by a partial read (#31)
+
+
+0.0.2 (2020-05-25)
+------------------
+- Fix packaging bug in ``setup.py``
+
+
+0.0.1 (2020-05-25)
+------------------
+- First release!!
