@@ -285,7 +285,7 @@ async def test_cog_metadata_iter(infile, create_cog_reader):
 @pytest.mark.asyncio
 async def test_block_cache_enabled(create_cog_reader, monkeypatch):
     # Cache is disabled for tests
-    monkeypatch.setattr(config, "ENABLE_BLOCK_CACHE", True)
+    monkeypatch.setattr(config, "ENABLE_CACHE", True)
     infile = "https://async-cog-reader-test-data.s3.amazonaws.com/lzw_cog.tif"
     async with create_cog_reader(infile) as cog:
         await cog.get_tile(0,0,0)

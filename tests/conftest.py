@@ -31,7 +31,7 @@ async def client_session():
 
 @pytest.fixture
 def create_cog_reader(client_session, monkeypatch):
-    monkeypatch.setattr(config, "ENABLE_BLOCK_CACHE", False)
+    monkeypatch.setattr(config, "ENABLE_CACHE", False)
     def _create_reader(infile):
         return COGReader(filepath=infile)
 
