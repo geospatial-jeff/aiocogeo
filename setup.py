@@ -3,6 +3,10 @@ from setuptools import setup, find_packages
 with open("README.md") as f:
     desc = f.read()
 
+extras = {
+    "s3": ["aioboto3"]
+}
+
 setup(
     name="aiocogeo",
     description="Asynchronous cogeotiff reader",
@@ -27,7 +31,6 @@ setup(
     packages=find_packages(exclude=["tests"]),
     include_package_data=True,
     install_requires=[
-        "aioboto3",
         "aiofiles",
         "aiohttp<=3.6.2",
         "aiocache",
@@ -41,7 +44,9 @@ setup(
         'pytest-runner'
     ],
     entry_points={"console_scripts": ["aiocogeo=aiocogeo.scripts.cli:app"]},
+    extras_require=extras,
     tests_require=[
+        "aioboto3",
         "mercantile",
         "morecantile",
         "pytest",
