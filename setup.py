@@ -46,7 +46,6 @@ setup(
     entry_points={"console_scripts": ["aiocogeo=aiocogeo.scripts.cli:app"]},
     extras_require=extras,
     tests_require=[
-        "aioboto3",
         "mercantile",
         "morecantile",
         "pytest",
@@ -55,5 +54,6 @@ setup(
         "rasterio",
         "rio-tiler==2.0a4",
         "shapely",
+        "aioboto3",
     ]
 )
