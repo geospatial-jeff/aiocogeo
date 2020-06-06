@@ -3,8 +3,10 @@ import asyncio
 from dataclasses import dataclass
 import logging
 import time
+from typing import Callable
 from urllib.parse import urlsplit
 
+from aiocache import cached, Cache
 import aiofiles
 import aiohttp
 
@@ -29,6 +31,16 @@ except ModuleNotFoundError:
 
 logger = logging.getLogger(__name__)
 logger.setLevel(config.LOG_LEVEL)
+
+
+def config_cache(fn: Callable) -> Callable:
+    """
+    Inject cache config params (https://aiocache.readthedocs.io/en/latest/decorators.html#aiocache.cached)
+    """
+    def wrap_function(*args, **kwargs):
+        kwargs['cache_read'] = kwargs['cache_write'] = config.ENABLE_BLOCK_CACHE
+        return fn(*args, **kwargs)
+    return wrap_function
 
 
 @dataclass
@@ -60,8 +72,19 @@ class Filesystem(abc.ABC):
             return LocalFilesystem(filepath)
         raise NotImplemented("Unsupported file system")
 
-    @abc.abstractmethod
+    @config_cache
+    @cached(
+        cache=Cache.MEMORY,
+        key_builder=lambda fn,*args,**kwargs: f"{args[0].filepath}-{args[1]}-{args[2]}"
+    )
     async def range_request(self, start: int, offset: int) -> bytes:
+        """
+        Perform and cache a range request.
+        """
+        return await self._range_request(start, offset)
+
+    @abc.abstractmethod
+    async def _range_request(self, start: int, offset: int) -> bytes:
         """Perform a range request"""
         ...
 
@@ -71,6 +94,7 @@ class Filesystem(abc.ABC):
         Close any resources created in ``__aexit__``, allows extending ``Filesystem`` context managers past their scope
         """
         ...
+
 
     async def read(self, offset: int, cast_to_int: bool = False):
         """
@@ -99,7 +123,7 @@ class Filesystem(abc.ABC):
 @dataclass
 class HttpFilesystem(Filesystem):
 
-    async def range_request(self, start: int, offset: int) -> bytes:
+    async def _range_request(self, start: int, offset: int) -> bytes:
         range_header = {"Range": f"bytes={start}-{start + offset}"}
         async with self.session.get(self.filepath, headers=range_header) as cog:
             data = await cog.content.read()
@@ -145,7 +169,7 @@ class HttpFilesystem(Filesystem):
 @dataclass
 class LocalFilesystem(Filesystem):
 
-    async def range_request(self, start: int, offset: int) -> bytes:
+    async def _range_request(self, start: int, offset: int) -> bytes:
         begin = time.time()
         await self.file.seek(start)
         data = await self.file.read(offset+1)
@@ -167,7 +191,7 @@ class LocalFilesystem(Filesystem):
 @dataclass
 class S3Filesystem(Filesystem):
 
-    async def range_request(self, start: int, offset: int) -> bytes:
+    async def _range_request(self, start: int, offset: int) -> bytes:
         begin = time.time()
         req = await self.object.get(Range=f'bytes={start}-{start+offset}')
         elapsed = time.time() - begin
