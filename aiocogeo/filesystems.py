@@ -5,25 +5,31 @@ import logging
 import time
 from urllib.parse import urlsplit
 
-import aioboto3
 import aiofiles
 import aiohttp
 
 from . import config
 
+# https://github.com/developmentseed/rio-viz/blob/master/rio_viz/app.py#L33-L38
+try:
+    import aioboto3
+    has_s3 = True
+    if config.VERBOSE_LOGS:
+        # Default to boto3 debug logs if verbose logging is enabled
+        s3_log_level = config.LOG_LEVEL
+    else:
+        s3_log_level = logging.ERROR
+
+    logging.getLogger("aiobotocore").setLevel(s3_log_level)
+    logging.getLogger("botocore").setLevel(s3_log_level)
+    logging.getLogger("aioboto3").setLevel(s3_log_level)
+except ModuleNotFoundError:
+    has_s3 = False
+
+
 logger = logging.getLogger(__name__)
 logger.setLevel(config.LOG_LEVEL)
 
-
-if config.VERBOSE_LOGS:
-    # Default to boto3 debug logs if verbose logging is enabled
-    s3_log_level = config.LOG_LEVEL
-else:
-    s3_log_level = logging.ERROR
-
-logging.getLogger("aiobotocore").setLevel(s3_log_level)
-logging.getLogger("botocore").setLevel(s3_log_level)
-logging.getLogger("aioboto3").setLevel(s3_log_level)
 
 @dataclass
 class Filesystem(abc.ABC):
@@ -47,6 +53,8 @@ class Filesystem(abc.ABC):
         if splits.scheme in {"http", "https"}:
             return HttpFilesystem(filepath)
         elif splits.scheme == "s3":
+            if not has_s3:
+                raise NotImplementedError("Package must be built with [s3] extra to read from S3")
             return S3Filesystem(filepath)
         elif (not splits.scheme and not splits.netloc):
             return LocalFilesystem(filepath)
