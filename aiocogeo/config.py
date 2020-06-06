@@ -17,7 +17,7 @@ INGESTED_BYTES_AT_OPEN: int = os.getenv("INGESTED_BYTES_AT_OPEN", 16384)
 
 # https://trac.osgeo.org/gdal/wiki/ConfigOptions#VSI_CACHE
 # Determines if in-memory block caching is enabled
-ENABLE_BLOCK_CACHE: bool = True if os.getenv(
+ENABLE_CACHE: bool = True if os.getenv(
     "ENABLE_BLOCK_CACHE", "TRUE"
 ).upper() == "TRUE" else False
 

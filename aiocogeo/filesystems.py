@@ -38,7 +38,7 @@ def config_cache(fn: Callable) -> Callable:
     Inject cache config params (https://aiocache.readthedocs.io/en/latest/decorators.html#aiocache.cached)
     """
     def wrap_function(*args, **kwargs):
-        kwargs['cache_read'] = kwargs['cache_write'] = config.ENABLE_BLOCK_CACHE
+        kwargs['cache_read'] = kwargs['cache_write'] = config.ENABLE_CACHE
         return fn(*args, **kwargs)
     return wrap_function
 
