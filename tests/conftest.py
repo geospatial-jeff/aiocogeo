@@ -1,3 +1,5 @@
+import asyncio
+from concurrent.futures import ProcessPoolExecutor
 import os
 
 import aiohttp
@@ -7,6 +9,8 @@ from typer.testing import CliRunner
 from aiocogeo import config
 from aiocogeo import COGReader
 
+
+asyncio.get_event_loop().set_default_executor(ProcessPoolExecutor())
 
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")

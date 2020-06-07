@@ -11,6 +11,7 @@ from .constants import COMPRESSIONS, INTERLEAVE, SAMPLE_DTYPES
 from .errors import TileNotFoundError
 from .filesystems import Filesystem
 from .tag import Tag
+from .utils import run_in_background
 
 @dataclass
 class IFD:
@@ -123,7 +124,7 @@ class ImageIFD(OptionalTags, Compression, RequiredTags, IFD):
         offset = self.TileOffsets[idx]
         byte_count = self.TileByteCounts[idx] - 1
         img_bytes = await self._file_reader.range_request(offset, byte_count)
-        return self._decompress(img_bytes)
+        return await run_in_background(self._decompress, img_bytes)
 
     @property
     def tile_count(self) -> Tuple[int, int]:
@@ -150,4 +151,4 @@ class MaskIFD(ImageIFD):
         offset = self.TileOffsets[idx]
         byte_count = self.TileByteCounts[idx] - 1
         img_bytes = await self._file_reader.range_request(offset, byte_count)
-        return self._decompress_mask(img_bytes)
+        return await run_in_background(self._decompress_mask, img_bytes)

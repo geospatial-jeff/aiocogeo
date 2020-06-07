@@ -12,6 +12,7 @@ from skimage.transform import resize
 
 from .filesystems import Filesystem
 from .ifd import ImageIFD, MaskIFD
+from .utils import run_in_background
 
 NpArrayType = Union[np.ndarray, np.ma.masked_array]
 
@@ -338,7 +339,7 @@ class PartialReadInterface(PartialReadBase):
             # Extract the tile
             tile_bytes = self._extract_tile(ifd, response[0], tile_idx, offset)
             # Decompress the tile
-            decoded = ifd._decompress(tile_bytes)
+            decoded = await run_in_background(ifd._decompress, tile_bytes)
             if self.is_masked:
                 # Extract mask
                 mask_ifd = self.mask_ifds[img_tiles.ovr_level]
@@ -346,7 +347,7 @@ class PartialReadInterface(PartialReadBase):
                     mask_ifd, response[1], tile_idx, mask_offset
                 )
                 # Decompress and apply mask
-                mask_decoded = ifd._decompress_mask(mask_bytes)
+                mask_decoded = await run_in_background(ifd._decompress_mask, mask_bytes)
                 decoded = np.ma.masked_array(
                     decoded, np.invert(np.broadcast_to(mask_decoded, decoded.shape))
                 )
