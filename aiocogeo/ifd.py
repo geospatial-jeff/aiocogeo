@@ -1,8 +1,6 @@
-import asyncio
-import abc
 from dataclasses import dataclass
 import math
-from typing import Dict, Tuple, Union
+from typing import Dict, Optional, Tuple, Union
 
 import numpy as np
 
@@ -69,13 +67,19 @@ class RequiredTags:
 
 @dataclass
 class OptionalTags:
+    # TIFF standard tags
     NewSubfileType: Tag = None
     Predictor: Tag = None
     JPEGTables: Tag = None
 
+    # GeoTiff
     GeoKeyDirectoryTag: Tag = None
     ModelPixelScaleTag: Tag = None
     ModelTiepointTag: Tag = None
+
+    # GDAL private tags
+    NoData: Tag = None
+
 
 @dataclass
 class ImageIFD(OptionalTags, Compression, RequiredTags, IFD):
@@ -101,6 +105,10 @@ class ImageIFD(OptionalTags, Compression, RequiredTags, IFD):
             return np.dtype(
                 SAMPLE_DTYPES[(self.SampleFormat.value[0], self.BitsPerSample.value[0])]
             )
+
+    @property
+    def nodata(self) -> Optional[int]:
+        return int(self.NoData.value[0]) if self.NoData else None
 
     @property
     def interleave(self) -> str:

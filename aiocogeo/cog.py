@@ -58,21 +58,22 @@ class COGReader(PartialReadInterface):
     @property
     def profile(self) -> Dict[str, Any]:
         """Return a rasterio-style image profile"""
-        # TODO: Support nodata value
+        ifd = self.ifds[0]
         return {
             "driver": "GTiff",
-            "width": self.ifds[0].ImageWidth.value,
-            "height": self.ifds[0].ImageHeight.value,
-            "count": self.ifds[0].bands,
-            "dtype": str(self.ifds[0].dtype),
+            "width": ifd.ImageWidth.value,
+            "height": ifd.ImageHeight.value,
+            "count": ifd.bands,
+            "dtype": str(ifd.dtype),
             "transform": self.geotransform(),
-            "blockxsize": self.ifds[0].TileWidth.value,
-            "blockysize": self.ifds[0].TileHeight.value,
-            "compress": self.ifds[0].compression,
-            "interleave": self.ifds[0].interleave,
+            "blockxsize": ifd.TileWidth.value,
+            "blockysize": ifd.TileHeight.value,
+            "compress": ifd.compression,
+            "interleave": ifd.interleave,
             "crs": f"EPSG:{self.epsg}",
+            "nodata": ifd.nodata,
             "tiled": True,
-            "photometric": PHOTOMETRIC[self.ifds[0].PhotometricInterpretation.value],
+            "photometric": PHOTOMETRIC[ifd.PhotometricInterpretation.value],
         }
 
     @property

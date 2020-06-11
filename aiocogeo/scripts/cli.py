@@ -71,6 +71,7 @@ def _create_json_info(cog):
             "resolution": (profile['transform'].a, profile['transform'].e),
             "bbox": cog.bounds,
             "compression": cog.ifds[0].compression,
+            "nodata": profile['nodata'],
             "internal_mask": cog.is_masked
         },
         "ifd": _get_ifd_stats(cog.ifds)
@@ -111,6 +112,7 @@ async def info(
             {_make_bold("Resolution:"):<{sep}} ({profile['transform'].a}, {profile['transform'].e})
             {_make_bold("BoundingBox:"):<{sep}} {cog.bounds}
             {_make_bold("Compression:"):<{sep}} {cog.ifds[0].compression}
+            {_make_bold("NoData:"):<{sep}} {profile['nodata']}
             {_make_bold("Internal mask:"):<{sep}} {cog.is_masked}
         """
         )

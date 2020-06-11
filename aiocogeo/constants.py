@@ -136,4 +136,5 @@ TIFF_TAGS = {
     33550: "ModelPixelScaleTag",
     33922: "ModelTiepointTag",
     34735: "GeoKeyDirectoryTag",
+    42113: "NoData"
 }

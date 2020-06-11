@@ -27,10 +27,6 @@ async def test_cog_metadata(infile, create_cog_reader):
             rio_profile = ds.profile
             cog_profile = cog.profile
 
-            # Don't compare nodata, its not supported yet
-            cog_profile.pop("nodata", None)
-            rio_profile.pop("nodata", None)
-
             # Don't compare photometric, rasterio seems to not always report color interp
             cog_profile.pop("photometric", None)
             rio_profile.pop("photometric", None)
