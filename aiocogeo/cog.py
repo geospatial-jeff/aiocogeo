@@ -58,21 +58,22 @@ class COGReader(PartialReadInterface):
     @property
     def profile(self) -> Dict[str, Any]:
         """Return a rasterio-style image profile"""
-        # TODO: Support nodata value
+        ifd = self.ifds[0]
         return {
             "driver": "GTiff",
-            "width": self.ifds[0].ImageWidth.value,
-            "height": self.ifds[0].ImageHeight.value,
-            "count": self.ifds[0].bands,
-            "dtype": str(self.ifds[0].dtype),
+            "width": ifd.ImageWidth.value,
+            "height": ifd.ImageHeight.value,
+            "count": ifd.bands,
+            "dtype": str(ifd.dtype),
             "transform": self.geotransform(),
-            "blockxsize": self.ifds[0].TileWidth.value,
-            "blockysize": self.ifds[0].TileHeight.value,
-            "compress": self.ifds[0].compression,
-            "interleave": self.ifds[0].interleave,
+            "blockxsize": ifd.TileWidth.value,
+            "blockysize": ifd.TileHeight.value,
+            "compress": ifd.compression,
+            "interleave": ifd.interleave,
             "crs": f"EPSG:{self.epsg}",
+            "nodata": ifd.nodata,
             "tiled": True,
-            "photometric": PHOTOMETRIC[self.ifds[0].PhotometricInterpretation.value],
+            "photometric": PHOTOMETRIC[ifd.PhotometricInterpretation.value],
         }
 
     @property
@@ -113,6 +114,10 @@ class COGReader(PartialReadInterface):
     def is_masked(self) -> bool:
         """Check if the image has an internal mask"""
         return True if self.mask_ifds else False
+
+    @property
+    def nodata(self) -> Optional[int]:
+        return self.ifds[0].nodata
 
     async def _read_header(self) -> None:
         """Internal method to read image header and parse into IFDs and Tags"""
@@ -178,10 +183,15 @@ class COGReader(PartialReadInterface):
             )
 
         tile = await asyncio.gather(*futures)
+
+        # Prioritize internal mask over nodata
         if self.is_masked:
             # Apply mask
             tile[1] = np.invert(np.broadcast_to(tile[1], tile[0].shape))
             return np.ma.masked_array(*tile)
+        # Explicitely check for None because nodata is often 0
+        if ifd.nodata is not None:
+            return np.ma.masked_where(tile[0] == ifd.nodata, tile[0])
         return tile[0]
 
     async def read(self, bounds: Tuple[float, float, float, float], shape: Tuple[int, int]) -> Union[np.ndarray, np.ma.masked_array]:

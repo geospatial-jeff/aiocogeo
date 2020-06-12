@@ -27,10 +27,6 @@ async def test_cog_metadata(infile, create_cog_reader):
             rio_profile = ds.profile
             cog_profile = cog.profile
 
-            # Don't compare nodata, its not supported yet
-            cog_profile.pop("nodata", None)
-            rio_profile.pop("nodata", None)
-
             # Don't compare photometric, rasterio seems to not always report color interp
             cog_profile.pop("photometric", None)
             rio_profile.pop("photometric", None)
@@ -91,7 +87,8 @@ async def test_cog_read_internal_tile(infile, create_cog_reader):
             rio_tile = src.read(
                 window=window
             )
-            if np.ma.is_masked(tile):
+            # Internal mask
+            if np.ma.is_masked(tile) and cog.is_masked:
                 assert cog.is_masked
                 tile_arr = np.ma.getdata(tile)
                 tile_mask = np.ma.getmask(tile)
@@ -107,6 +104,13 @@ async def test_cog_read_internal_tile(infile, create_cog_reader):
                 tile_mask_counts = np.unique(tile_mask, return_counts=True)
                 assert rio_mask_counts[0].all() == tile_mask_counts[0].all()
                 assert rio_mask_counts[1].all() == tile_mask_counts[1].all()
+            # Nodata
+            elif ifd.nodata is not None:
+                # Mask rio array to match aiocogeo output
+                rio_tile = np.ma.masked_where(rio_tile == src.profile['nodata'], rio_tile)
+                assert pytest.approx(np.min(rio_tile), 2) == np.min(tile)
+                assert pytest.approx(np.mean(rio_tile), 2) == np.mean(tile)
+                assert pytest.approx(np.max(rio_tile), 2) == np.max(tile)
             else:
                 # Make sure image data is the same
                 assert pytest.approx(np.min(rio_tile), 2) == np.min(tile)
@@ -114,6 +118,21 @@ async def test_cog_read_internal_tile(infile, create_cog_reader):
                 assert pytest.approx(np.max(rio_tile), 2) == np.max(tile)
 
 
+@pytest.mark.asyncio
+async def test_cog_read_internal_tile_nodata(create_cog_reader):
+    infile_nodata = "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_nodata.tif"
+    async with create_cog_reader(infile_nodata) as cog:
+        nodata_tile = await cog.get_tile(0, 0, 0)
+        # Confirm output array is masked using nodata value
+        assert np.ma.is_masked(nodata_tile)
+        assert not np.any(nodata_tile == cog.profile['nodata'])
+
+    # Confirm nodata mask is comparable to same image with internal mask
+    infile_internal_mask = "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_masked.tif"
+    async with create_cog_reader(infile_internal_mask) as cog:
+        mask_tile = await cog.get_tile(0, 0, 0)
+        # Confirm same number of masked values
+        assert nodata_tile.count() == mask_tile.count()
 
 
 @pytest.mark.asyncio
@@ -193,6 +212,24 @@ async def test_cog_read_internal_mask(create_cog_reader):
         frequencies = np.asarray(np.unique(valid_data, return_counts=True)).T
         assert pytest.approx(frequencies[0][1] / np.prod(tile.shape), abs=0.002) == 0
 
+
+@pytest.mark.asyncio
+async def test_cog_read_nodata_value(create_cog_reader):
+    infile_nodata = "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_nodata.tif"
+    async with create_cog_reader(infile_nodata) as cog:
+        nodata_tile = await cog.read(bounds=(-10526706.9, 4445561.5, -10526084.1, 4446144.0), shape=(512,512))
+        assert np.ma.is_masked(nodata_tile)
+
+    # Confirm nodata mask is comparable to same image with internal mask
+    infile_internal_mask = "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_masked.tif"
+    async with create_cog_reader(infile_internal_mask) as cog:
+        mask_tile = await cog.read(bounds=(-10526706.9, 4445561.5, -10526084.1, 4446144.0), shape=(512,512))
+        assert np.ma.is_masked(mask_tile)
+
+        # Nodata values wont be exactly the same because of difference in compression but they should be similar
+        # proportional to number of masked values
+        proportion_masked = abs(nodata_tile.count() - mask_tile.count()) / max(nodata_tile.count(), mask_tile.count())
+        assert pytest.approx(proportion_masked, abs=0.003) == 0
 
 @pytest.mark.asyncio
 async def test_cog_read_merge_range_requests(create_cog_reader, monkeypatch):
