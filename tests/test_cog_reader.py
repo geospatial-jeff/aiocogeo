@@ -360,3 +360,18 @@ async def test_cog_not_a_tiff(create_cog_reader):
     with pytest.raises(InvalidTiffError):
         async with create_cog_reader(infile) as cog:
             ...
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "infile", [
+        "/local/file/does/not/exist",
+        "https://cogsarecool.com/cog.tif", # Invalid host
+        "https://async-cog-reader-test-data.s3.amazonaws.com/file-does-not-exist.tif", # valid host invalid path
+        "s3://nobucket/badkey.tif"
+    ]
+)
+async def test_file_not_found(create_cog_reader, infile):
+    with pytest.raises(FileNotFoundError):
+        async with create_cog_reader(infile) as cog:
+            ...

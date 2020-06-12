@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 from aiocache import cached, Cache
 import aiofiles
 import aiohttp
+import botocore.exceptions
 
 from . import config
 
@@ -125,8 +126,13 @@ class HttpFilesystem(Filesystem):
 
     async def _range_request(self, start: int, offset: int) -> bytes:
         range_header = {"Range": f"bytes={start}-{start + offset}"}
-        async with self.session.get(self.filepath, headers=range_header) as cog:
-            data = await cog.content.read()
+        try:
+            async with self.session.get(self.filepath, headers=range_header) as resp:
+                resp.raise_for_status()
+                data = await resp.content.read()
+        except (aiohttp.ClientError, aiohttp.ClientResponseError) as e:
+            await self._close()
+            raise FileNotFoundError(f"File not found: {self.filepath}") from e
         return data
 
     async def _close(self) -> None:
@@ -152,18 +158,19 @@ class HttpFilesystem(Filesystem):
         logger.debug(debug_statement)
 
     async def _on_request_end(self, session, trace_config_ctx, params):
-        elapsed = round(asyncio.get_event_loop().time() - trace_config_ctx.start, 3)
-        content_range = params.response.headers['Content-Range']
-        self._total_bytes_requested += int(params.response.headers["Content-Length"])
-        self._total_requests += 1
-        self._requested_ranges.append(tuple([int(v) for v in content_range.split(' ')[-1].split('/')[0].split('-')]))
-        if config.VERBOSE_LOGS:
-            debug_statement = [f"\n < HTTP/{session.version.major}.{session.version.minor}"]
-            debug_statement += [f"\n < {k}: {v}" for (k, v) in params.response.headers.items()]
-            debug_statement.append(f"\n < Duration: {elapsed}")
-        else:
-            debug_statement = f" FINISHED REQUEST in {elapsed} seconds: <STATUS {params.response.status}> ({content_range})"
-        logger.debug("".join(debug_statement))
+        if params.response.status < 400:
+            elapsed = round(asyncio.get_event_loop().time() - trace_config_ctx.start, 3)
+            content_range = params.response.headers['Content-Range']
+            self._total_bytes_requested += int(params.response.headers["Content-Length"])
+            self._total_requests += 1
+            self._requested_ranges.append(tuple([int(v) for v in content_range.split(' ')[-1].split('/')[0].split('-')]))
+            if config.VERBOSE_LOGS:
+                debug_statement = [f"\n < HTTP/{session.version.major}.{session.version.minor}"]
+                debug_statement += [f"\n < {k}: {v}" for (k, v) in params.response.headers.items()]
+                debug_statement.append(f"\n < Duration: {elapsed}")
+            else:
+                debug_statement = f" FINISHED REQUEST in {elapsed} seconds: <STATUS {params.response.status}> ({content_range})"
+            logger.debug("".join(debug_statement))
 
 
 @dataclass
@@ -193,7 +200,11 @@ class S3Filesystem(Filesystem):
 
     async def _range_request(self, start: int, offset: int) -> bytes:
         begin = time.time()
-        req = await self.object.get(Range=f'bytes={start}-{start+offset}')
+        try:
+            req = await self.object.get(Range=f'bytes={start}-{start+offset}')
+        except botocore.exceptions.ClientError as e:
+            await self._close()
+            raise FileNotFoundError(f"File not found: {self.filepath}") from e
         elapsed = time.time() - begin
         content_range = req['ResponseMetadata']['HTTPHeaders']['content-range']
         if not config.VERBOSE_LOGS:
