@@ -135,10 +135,6 @@ async def test_cog_read_internal_tile_nodata(create_cog_reader):
         assert nodata_tile.count() == mask_tile.count()
 
 
-
-
-
-
 @pytest.mark.asyncio
 @pytest.mark.parametrize("infile", TEST_DATA[:-1])
 async def test_cog_calculate_image_tiles(infile, create_cog_reader):
@@ -216,6 +212,24 @@ async def test_cog_read_internal_mask(create_cog_reader):
         frequencies = np.asarray(np.unique(valid_data, return_counts=True)).T
         assert pytest.approx(frequencies[0][1] / np.prod(tile.shape), abs=0.002) == 0
 
+
+@pytest.mark.asyncio
+async def test_cog_read_nodata_value(create_cog_reader):
+    infile_nodata = "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_nodata.tif"
+    async with create_cog_reader(infile_nodata) as cog:
+        nodata_tile = await cog.read(bounds=(-10526706.9, 4445561.5, -10526084.1, 4446144.0), shape=(512,512))
+        assert np.ma.is_masked(nodata_tile)
+
+    # Confirm nodata mask is comparable to same image with internal mask
+    infile_internal_mask = "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_masked.tif"
+    async with create_cog_reader(infile_internal_mask) as cog:
+        mask_tile = await cog.read(bounds=(-10526706.9, 4445561.5, -10526084.1, 4446144.0), shape=(512,512))
+        assert np.ma.is_masked(mask_tile)
+
+        # Nodata values wont be exactly the same because of difference in compression but they should be similar
+        # proportional to number of masked values
+        proportion_masked = abs(nodata_tile.count() - mask_tile.count()) / max(nodata_tile.count(), mask_tile.count())
+        assert pytest.approx(proportion_masked, abs=0.003) == 0
 
 @pytest.mark.asyncio
 async def test_cog_read_merge_range_requests(create_cog_reader, monkeypatch):

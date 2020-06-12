@@ -4,7 +4,7 @@ import abc
 from dataclasses import dataclass
 from functools import partial
 import math
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import affine
 import numpy as np
@@ -51,6 +51,12 @@ class PartialReadBase(abc.ABC):
 
     @property
     @abc.abstractmethod
+    def nodata(self) -> Optional[int]:
+        """Return nodata value or None if there is not a nodata value"""
+        ...
+
+    @property
+    @abc.abstractmethod
     def overviews(self) -> List[int]:
         """Return decimation factor for each overview (2**zoom)"""
         ...
@@ -71,6 +77,11 @@ class PartialReadBase(abc.ABC):
     ) -> Union[np.ndarray, np.ma.masked_array]:
         """Do a partial read"""
         ...
+
+    @property
+    def _add_mask(self) -> bool:
+        """Determine if a mask needs to be added to the array"""
+        return True if self.is_masked or (self.nodata is not None) else False
 
     def _get_overview_level(
         self, bounds: Tuple[float, float, float, float], width: int, height: int
@@ -171,7 +182,7 @@ class PartialReadBase(abc.ABC):
                 (img_tiles.xmax + 1 - img_tiles.xmin) * img_tiles.tile_width,
             )
         ).astype(img_tiles.dtype)
-        if self.is_masked:
+        if self._add_mask:
             fused = np.ma.masked_array(fused)
         return fused
 
@@ -261,7 +272,7 @@ class PartialReadBase(abc.ABC):
             preserve_range=True,
             anti_aliasing=True,
         ).astype(img_tiles.dtype)
-        if self.is_masked:
+        if self._add_mask:
             resized_mask = resize(
                 clipped.mask,
                 output_shape=(img_tiles.bands, out_shape[0], out_shape[1]),
@@ -320,7 +331,7 @@ class PartialReadInterface(PartialReadBase):
         )
         futures.append(tile_task)
 
-        if self.is_masked:
+        if self._add_mask:
             # Request mask data
             mask_ifd = self.mask_ifds[img_tiles.ovr_level]
             mask_offset = mask_ifd.TileOffsets[min(tile_indices)]
@@ -340,7 +351,7 @@ class PartialReadInterface(PartialReadBase):
             tile_bytes = self._extract_tile(ifd, response[0], tile_idx, offset)
             # Decompress the tile
             decoded = await run_in_background(ifd._decompress, tile_bytes)
-            if self.is_masked:
+            if self._add_mask:
                 # Extract mask
                 mask_ifd = self.mask_ifds[img_tiles.ovr_level]
                 mask_bytes = self._extract_tile(
