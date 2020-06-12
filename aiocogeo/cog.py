@@ -179,10 +179,15 @@ class COGReader(PartialReadInterface):
             )
 
         tile = await asyncio.gather(*futures)
+
+        # Prioritize internal mask over nodata
         if self.is_masked:
             # Apply mask
             tile[1] = np.invert(np.broadcast_to(tile[1], tile[0].shape))
             return np.ma.masked_array(*tile)
+        # Explicitely check for None because nodata is often 0
+        if ifd.nodata is not None:
+            return np.ma.masked_where(tile[0] == ifd.nodata, tile[0])
         return tile[0]
 
     async def read(self, bounds: Tuple[float, float, float, float], shape: Tuple[int, int]) -> Union[np.ndarray, np.ma.masked_array]:
