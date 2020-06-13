@@ -67,12 +67,11 @@ class Tag:
         length = field_type.size * count
         if length <= 4:
             data = await reader.read(length)
-            # We need to interpret both bits of NewSubfileType independently, even though the tiff spec says there is
-            # a single value If we need to keep adding more custom logic here for specific tags we should switch to
-            # something more declarative where each tag defines how to read its data.
             value = struct.unpack(f"{reader._endian}{count}{field_type.format}", data)
             reader.incr(4 - length)
-
+            # Interpret both bits of NewSubfileType independently, even though the tiff spec says there is
+            # a single value If we need to keep adding more custom logic here for specific tags we should switch to
+            # something more declarative where each tag defines how to read its data.
             if name == "NewSubfileType":
                 bit32 = '{:032b}'.format(value[0])
                 value = [[int(x) for x in str(int(bit32)).zfill(3)]]
@@ -81,7 +80,9 @@ class Tag:
             value_offset = await reader.read(4, cast_to_int=True)
             end_of_tag = reader.tell()
             if value_offset + length > INGESTED_BYTES_AT_OPEN:
+                # Increment header size if more data is read
                 data = await reader.range_request(value_offset, length - 1)
+                reader._header_size += length
             else:
                 reader.seek(value_offset)
                 data = await reader.read(length)

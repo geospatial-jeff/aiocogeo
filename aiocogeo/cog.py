@@ -107,7 +107,8 @@ class COGReader(PartialReadInterface):
         return {
             'count': self._file_reader._total_requests,
             'byte_count': self._file_reader._total_bytes_requested,
-            'ranges': self._file_reader._requested_ranges
+            'ranges': self._file_reader._requested_ranges,
+            'header_size': self._file_reader._header_size
         }
 
     @property
