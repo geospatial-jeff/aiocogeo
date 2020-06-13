@@ -83,6 +83,23 @@ class PartialReadBase(abc.ABC):
         """Determine if a mask needs to be added to the array"""
         return True if self.is_masked or (self.nodata is not None) else False
 
+    @staticmethod
+    def _intersect_bounds(
+        read_bounds: Tuple[float, float, float, float],
+        cog_bounds: Tuple[float, float, float, float]
+    ) -> bool:
+        """
+        Determine if a bounding box intersects another bounding box
+
+        https://github.com/cogeotiff/rio-tiler/blob/2.0a11/rio_tiler/utils.py#L254-L283
+        """
+        return (
+            (cog_bounds[0] < read_bounds[2])
+            and (cog_bounds[2] > read_bounds[0])
+            and (cog_bounds[3] > read_bounds[1])
+            and (cog_bounds[1] < read_bounds[3])
+        )
+
     def _get_overview_level(
         self, bounds: Tuple[float, float, float, float], width: int, height: int
     ) -> int:

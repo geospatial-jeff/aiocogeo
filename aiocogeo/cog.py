@@ -167,9 +167,11 @@ class COGReader(PartialReadInterface):
         if z > len(self.ifds):
             raise TileNotFoundError(f"Overview {z} does not exist.")
         ifd = self.ifds[z]
-        idx = (y * ifd.tile_count[0]) + x
-        if idx > len(ifd.TileOffsets):
-            raise TileNotFoundError(f"Tile {x} {y} {z} does not exist")
+        xmax, ymax = ifd.tile_count
+
+        # Return an empty array if tile is outside bounds of image
+        if x < 0 or y < 0 or x >= xmax or y >= ymax:
+            return np.zeros((ifd.bands, ifd.TileHeight.value, ifd.TileWidth.value))
 
         # Request the tile
         futures.append(
@@ -211,6 +213,9 @@ class COGReader(PartialReadInterface):
             ovr_level=ovr_level,
             dtype=ifd.dtype
         )
+
+        if not self._intersect_bounds(bounds, self.bounds):
+            raise TileNotFoundError("Partial read is outside bounds of the image")
 
         # Request those tiles
         if config.HTTP_MERGE_CONSECUTIVE_RANGES:
