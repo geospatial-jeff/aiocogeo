@@ -114,6 +114,7 @@ async def info(
             {_make_bold("Compression:"):<{sep}} {cog.ifds[0].compression}
             {_make_bold("NoData:"):<{sep}} {profile['nodata']}
             {_make_bold("Internal mask:"):<{sep}} {cog.is_masked}
+            {_make_bold("Header size:"):<{sep}} {cog.requests['header_size']}
         """
         )
         typer.echo(
