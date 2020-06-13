@@ -323,7 +323,7 @@ async def test_boundless_read_fill_value(create_cog_reader, monkeypatch):
         # Count number of pixels with a value of 1
         tile = await cog.read(bounds=bounds, shape=(256,256))
         counts = dict(zip(*np.unique(tile, return_counts=True)))
-        assert counts[1] == 179629
+        assert counts[1] == 166142
 
 
 @pytest.mark.asyncio
