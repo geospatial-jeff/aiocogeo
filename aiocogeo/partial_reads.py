@@ -10,7 +10,7 @@ import affine
 import numpy as np
 from skimage.transform import resize
 
-from .filesystems import Filesystem
+from . import config
 from .ifd import ImageIFD, MaskIFD
 from .utils import run_in_background
 
@@ -81,7 +81,12 @@ class PartialReadBase(abc.ABC):
     @property
     def _add_mask(self) -> bool:
         """Determine if a mask needs to be added to the array"""
-        return True if self.is_masked or (self.nodata is not None) else False
+        if self.is_masked:
+            return True
+        if self.nodata is not None:
+            return True
+        return False
+
 
     @staticmethod
     def _intersect_bounds(

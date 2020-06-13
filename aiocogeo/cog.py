@@ -171,7 +171,13 @@ class COGReader(PartialReadInterface):
 
         # Return an empty array if tile is outside bounds of image
         if x < 0 or y < 0 or x >= xmax or y >= ymax:
-            return np.zeros((ifd.bands, ifd.TileHeight.value, ifd.TileWidth.value))
+            if not config.BOUNDLESS_READ:
+                raise TileNotFoundError(f"Internal tile {z}/{x}/{y} does not exist")
+            tile = np.full(
+                (ifd.bands, ifd.TileHeight.value, ifd.TileWidth.value),
+                fill_value=config.BOUNDLESS_READ_FILL_VALUE
+            )
+            return tile
 
         # Request the tile
         futures.append(
@@ -192,7 +198,7 @@ class COGReader(PartialReadInterface):
             # Apply mask
             tile[1] = np.invert(np.broadcast_to(tile[1], tile[0].shape))
             return np.ma.masked_array(*tile)
-        # Explicitely check for None because nodata is often 0
+        # Explicitly check for None because nodata is often 0
         if ifd.nodata is not None:
             return np.ma.masked_where(tile[0] == ifd.nodata, tile[0])
         return tile[0]
