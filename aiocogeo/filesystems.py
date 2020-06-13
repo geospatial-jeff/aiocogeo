@@ -54,6 +54,7 @@ class Filesystem(abc.ABC):
         self._endian: str = "<"
         self._total_bytes_requested: int = 0
         self._total_requests: int = 0
+        self._header_size: int = config.INGESTED_BYTES_AT_OPEN
         self._requested_ranges = []
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
