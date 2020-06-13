@@ -330,6 +330,21 @@ async def test_boundless_read_fill_value(create_cog_reader, monkeypatch):
 @pytest.mark.parametrize(
     "infile", TEST_DATA
 )
+async def test_boundless_get_tile(create_cog_reader, infile, monkeypatch):
+    async with create_cog_reader(infile) as cog:
+        fill_value = random.randint(0, 100)
+        monkeypatch.setattr(config, "BOUNDLESS_READ_FILL_VALUE", fill_value)
+
+        # Test reading tiles outside of IFD when boundless reads is enabled
+        tile = await cog.get_tile(x=-1, y=-1, z=0)
+        counts = dict(zip(*np.unique(tile, return_counts=True)))
+        assert counts[fill_value] == tile.shape[0] * tile.shape[1] * tile.shape[2]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "infile", TEST_DATA
+)
 async def test_read_not_in_bounds(create_cog_reader, infile):
     tile = mercantile.Tile(x=0,y=0,z=25)
     bounds = mercantile.xy_bounds(tile)
