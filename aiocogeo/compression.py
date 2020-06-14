@@ -98,3 +98,8 @@ class Compression(metaclass=abc.ABCMeta):
         decoded = self._reshape(np.frombuffer(imagecodecs.zlib_decode(tile), self.dtype))
         self._unpredict(decoded)
         return np.rollaxis(decoded, 2, 0)
+
+    def _packbits(self, tile: bytes) -> np.ndarray:
+        """Internal method to decompress PACKBITS image bytes and convert to numpy array"""
+        decoded = self._reshape(np.frombuffer(imagecodecs.packbits_decode(tile), self.dtype))
+        return np.rollaxis(decoded, 2, 0)

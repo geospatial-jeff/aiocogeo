@@ -81,8 +81,7 @@ async with COGReader("https://async-cog-reader-test-data.s3.amazonaws.com/lzw_co
 ```
 
 ### Image Data
-The reader also has methods for reading internal image tiles and performing partial reads.  Currently only jpeg, lzw,
-and webp compressions are supported.
+The reader also has methods for reading internal image tiles and performing partial reads.  Currently only jpeg, lzw, packbits, and webp compressions are supported.
 
 #### Image Tiles
 Reading the top left tile of an image at native resolution:
