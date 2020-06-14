@@ -127,8 +127,6 @@ class ImageIFD(OptionalTags, Compression, RequiredTags, IFD):
     async def _get_tile(self, x: int, y: int) -> np.ndarray:
         """Read the requested tile from the IFD"""
         idx = (y * self.tile_count[0]) + x
-        if idx > len(self.TileOffsets):
-            raise TileNotFoundError(f"Tile {x} {y} does not exist")
         offset = self.TileOffsets[idx]
         byte_count = self.TileByteCounts[idx] - 1
         img_bytes = await self._file_reader.range_request(offset, byte_count)
@@ -154,8 +152,6 @@ class MaskIFD(ImageIFD):
     async def _get_tile(self, x: int, y: int) -> np.ndarray:
         """Read the requested tile from the IFD"""
         idx = (y * self.tile_count[0]) + x
-        if idx > len(self.TileOffsets):
-            raise TileNotFoundError(f"Tile {x} {y} does not exist")
         offset = self.TileOffsets[idx]
         byte_count = self.TileByteCounts[idx] - 1
         img_bytes = await self._file_reader.range_request(offset, byte_count)
