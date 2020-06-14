@@ -8,6 +8,7 @@ COMPRESSIONS = {
     6: "jpeg",
     7: "jpeg",
     8: "deflate",
+    32773: "packbits",
     50001: "webp",
 }
 
