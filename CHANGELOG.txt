@@ -1,3 +1,15 @@
+0.1.5 (2020-6-13)
+------------------
+- Add support for nodata values (#47)
+- Improve filesystem exception handling (#48)
+- Track header size (#49)
+- Add support for boundless reads (#51)
+   - Add ``BOUNDLESS_READ`` configuration option which determines if internal tiles outside bounds of the IFD are read
+   - Add ``BOUNDLESS_READ_FILL_VALUE`` configuration option which determines the value used to fill boundless reads
+- Remove asyncio callbacks (#52)
+- Add support for packbits compressed images (#54)
+
+
 0.1.4 (2020-6-07)
 ------------------
 - Runs cpu bound code in background executor (#44)
