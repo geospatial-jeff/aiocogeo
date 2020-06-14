@@ -208,28 +208,6 @@ class PartialReadBase(abc.ABC):
             fused = np.ma.masked_array(fused)
         return fused
 
-    @staticmethod
-    def _stitch_image_tile_callback(
-        fut: asyncio.Future,
-        fused_arr: NpArrayType,
-        idx: int,
-        idy: int,
-        tile_width: int,
-        tile_height: int,
-    ) -> None:
-        """Internal asyncio callback used to mosaic each image tile into a larger array (see ``_init_array``)"""
-        img_arr = fut.result()
-        fused_arr[
-            :,
-            idy * tile_height : (idy + 1) * tile_height,
-            idx * tile_width : (idx + 1) * tile_width,
-        ] = img_arr
-        if np.ma.is_masked(img_arr):
-            fused_arr.mask[
-                :,
-                idy * tile_height : (idy + 1) * tile_height,
-                idx * tile_width : (idx + 1) * tile_width,
-            ] = img_arr.mask
 
     @staticmethod
     def _stitch_image_tile(
@@ -253,6 +231,21 @@ class PartialReadBase(abc.ABC):
                 idx * tile_width : (idx + 1) * tile_width,
             ] = arr.mask
 
+
+    async def _get_and_stitch_tile(
+        self,
+        xtile: int,
+        ytile: int,
+        idx: int,
+        idy: int,
+        img_tiles: TileMetadata,
+        fused_arr: NpArrayType
+    ) -> None:
+        """Asynchronously request an internal tile and stitch into an array"""
+        tile = await self.get_tile(xtile, ytile, img_tiles.ovr_level)
+        self._stitch_image_tile(tile, fused_arr, idx, idy, img_tiles.tile_width, img_tiles.tile_height)
+
+
     async def _request_tiles(self, img_tiles: TileMetadata) -> NpArrayType:
         """Concurrently request the image tiles and mosaic into a larger array"""
         img_arr = self._init_array(img_tiles)
@@ -260,17 +253,7 @@ class PartialReadBase(abc.ABC):
         for idx, xtile in enumerate(range(img_tiles.xmin, img_tiles.xmax + 1)):
             for idy, ytile in enumerate(range(img_tiles.ymin, img_tiles.ymax + 1)):
                 get_tile_task = asyncio.create_task(
-                    self.get_tile(xtile, ytile, img_tiles.ovr_level)
-                )
-                get_tile_task.add_done_callback(
-                    partial(
-                        self._stitch_image_tile_callback,
-                        fused_arr=img_arr,
-                        idx=idx,
-                        idy=idy,
-                        tile_width=img_tiles.tile_width,
-                        tile_height=img_tiles.tile_height,
-                    )
+                    self._get_and_stitch_tile(xtile, ytile, idx, idy, img_tiles, img_arr)
                 )
                 tile_tasks.append(get_tile_task)
         await asyncio.gather(*tile_tasks)
