@@ -72,7 +72,7 @@ class PartialReadBase(abc.ABC):
 
     @abc.abstractmethod
     async def read(
-        self, bounds: Tuple[float, float, float, float], shape: Tuple[int, int]
+        self, bounds: Tuple[float, float, float, float], shape: Tuple[int, int], resample_method: int
     ) -> Union[np.ndarray, np.ma.masked_array]:
         """Do a partial read"""
         ...
@@ -267,7 +267,7 @@ class PartialReadBase(abc.ABC):
         ]
 
     def _resample(
-        self, clipped: NpArrayType, img_tiles: TileMetadata, out_shape: Tuple[int, int]
+        self, clipped: NpArrayType, img_tiles: TileMetadata, out_shape: Tuple[int, int], resample_method: int
     ) -> NpArrayType:
         """Resample a numpy array to the desired shape"""
         img = Image.fromarray(np.rollaxis(clipped, 0, 3))
@@ -275,17 +275,17 @@ class PartialReadBase(abc.ABC):
         resized = np.rollaxis(np.array(resized), 2, 0)
         if self._add_mask:
             mask = Image.fromarray(clipped.mask[0,...])
-            resized_mask = np.array(mask.resize((out_shape[0], out_shape[1]), resample=Image.NEAREST))
+            resized_mask = np.array(mask.resize((out_shape[0], out_shape[1]), resample=resample_method))
             resized_mask = np.stack((resized_mask for _ in range(img_tiles.bands)))
             resized = np.ma.masked_array(resized, resized_mask)
         return resized
 
     def _postprocess(
-        self, arr: NpArrayType, img_tiles: TileMetadata, out_shape: Tuple[int, int]
+        self, arr: NpArrayType, img_tiles: TileMetadata, out_shape: Tuple[int, int], resample_method: int
     ) -> NpArrayType:
         """Wrapper around ``_clip_array`` and ``_resample`` to postprocess the partial read"""
         return self._resample(
-            self._clip_array(arr, img_tiles), img_tiles=img_tiles, out_shape=out_shape
+            self._clip_array(arr, img_tiles), img_tiles=img_tiles, out_shape=out_shape, resample_method=resample_method
         )
 
 

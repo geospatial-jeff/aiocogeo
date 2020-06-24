@@ -6,6 +6,7 @@ from urllib.parse import urljoin
 import uuid
 
 import affine
+from PIL import Image
 import numpy as np
 
 from . import config
@@ -203,7 +204,12 @@ class COGReader(PartialReadInterface):
             return np.ma.masked_where(tile[0] == ifd.nodata, tile[0])
         return tile[0]
 
-    async def read(self, bounds: Tuple[float, float, float, float], shape: Tuple[int, int]) -> Union[np.ndarray, np.ma.masked_array]:
+    async def read(
+        self,
+        bounds: Tuple[float, float, float, float],
+        shape: Tuple[int, int],
+        resample_method: int = Image.NEAREST,
+    ) -> Union[np.ndarray, np.ma.masked_array]:
         """
         Perform a partial read.  All pixels within the specified bounding box are read from the image and the array is
         resampled to match the desired shape.
@@ -234,7 +240,8 @@ class COGReader(PartialReadInterface):
             self._postprocess,
             arr=img_arr,
             img_tiles=img_tiles,
-            out_shape=shape
+            out_shape=shape,
+            resample_method=resample_method
         )
 
         return postprocessed
