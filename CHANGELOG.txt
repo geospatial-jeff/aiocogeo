@@ -1,3 +1,8 @@
+0.1.6 (2020-6-24)
+------------------
+- Use PIL for resize instead of skimage (#57)
+
+
 0.1.5 (2020-6-13)
 ------------------
 - Add support for nodata values (#47)
