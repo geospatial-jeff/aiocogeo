@@ -36,8 +36,8 @@ setup(
         "aiocache",
         "affine",
         "imagecodecs",
-        "scikit-image",
         "typer",
+        "Pillow"
     ],
     test_suite="tests",
     setup_requires=[
