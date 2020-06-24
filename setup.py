@@ -37,6 +37,7 @@ setup(
         "affine",
         "imagecodecs",
         "typer",
+        "Pillow"
     ],
     test_suite="tests",
     setup_requires=[
