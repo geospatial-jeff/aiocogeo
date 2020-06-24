@@ -36,7 +36,6 @@ setup(
         "aiocache",
         "affine",
         "imagecodecs",
-        "scikit-image",
         "typer",
     ],
     test_suite="tests",
