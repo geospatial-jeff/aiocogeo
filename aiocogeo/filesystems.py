@@ -1,9 +1,9 @@
 import abc
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import logging
 import time
-from typing import Callable
+from typing import Any, Callable, Dict, Union
 from urllib.parse import urlsplit
 
 from aiocache import cached, Cache
@@ -47,6 +47,7 @@ def config_cache(fn: Callable) -> Callable:
 @dataclass
 class Filesystem(abc.ABC):
     filepath: str
+    kwargs: field(default_factory=dict)
 
     def __post_init__(self):
         self.data: bytes = b""
@@ -61,17 +62,17 @@ class Filesystem(abc.ABC):
         ...
 
     @classmethod
-    def create_from_filepath(cls, filepath: str) -> "Filesystem":
+    def create_from_filepath(cls, filepath: str, **kwargs) -> "Filesystem":
         """Instantiate the appropriate filesystem based on filepath scheme"""
         splits = urlsplit(filepath)
         if splits.scheme in {"http", "https"}:
-            return HttpFilesystem(filepath)
+            return HttpFilesystem(filepath, kwargs=kwargs)
         elif splits.scheme == "s3":
             if not has_s3:
                 raise NotImplementedError("Package must be built with [s3] extra to read from S3")
-            return S3Filesystem(filepath)
+            return S3Filesystem(filepath, kwargs=kwargs)
         elif (not splits.scheme and not splits.netloc):
-            return LocalFilesystem(filepath)
+            return LocalFilesystem(filepath, kwargs=kwargs)
         raise NotImplemented("Unsupported file system")
 
     @config_cache
@@ -125,6 +126,18 @@ class Filesystem(abc.ABC):
 @dataclass
 class HttpFilesystem(Filesystem):
 
+    async def get_session(self) -> aiohttp.ClientSession:
+        trace_config = aiohttp.TraceConfig()
+        trace_config.on_request_start.append((self._on_request_start))
+        trace_config.on_request_end.append(self._on_request_end)
+        if "session" in self.kwargs:
+            session = self.kwargs['session']
+            if not session._trace_configs:
+                trace_config.freeze()
+                session._trace_configs = [trace_config]
+            return session
+        return aiohttp.ClientSession(trace_configs=[trace_config])
+
     async def _range_request(self, start: int, offset: int) -> bytes:
         range_header = {"Range": f"bytes={start}-{start + offset}"}
         try:
@@ -137,14 +150,13 @@ class HttpFilesystem(Filesystem):
         return data
 
     async def _close(self) -> None:
-        await self.session.close()
+        if 'session' not in self.kwargs:
+            await self.session.close()
 
     async def __aenter__(self):
-        trace_config = aiohttp.TraceConfig()
-        trace_config.on_request_start.append((self._on_request_start))
-        trace_config.on_request_end.append(self._on_request_end)
-        self.session = aiohttp.ClientSession(trace_configs=[trace_config])
+        self.session = await self.get_session()
         return self
+
 
     async def _on_request_start(self, session, trace_config_ctx, params):
         trace_config_ctx.start = asyncio.get_event_loop().time()

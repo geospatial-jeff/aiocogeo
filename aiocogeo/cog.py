@@ -1,7 +1,7 @@
 import asyncio
 from dataclasses import dataclass, field
 import logging
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import urljoin
 import uuid
 
@@ -30,10 +30,11 @@ class COGReader(PartialReadInterface):
     _version: Optional[int] = 42
     _big_tiff: Optional[bool] = False
 
+    kwargs: Optional[Dict] = field(default_factory=dict)
 
     async def __aenter__(self):
         """Open the image and read the header"""
-        async with Filesystem.create_from_filepath(self.filepath) as file_reader:
+        async with Filesystem.create_from_filepath(self.filepath, **self.kwargs) as file_reader:
             self._file_reader = file_reader
             if (await file_reader.read(2)) == b"MM":
                 file_reader._endian = ">"
