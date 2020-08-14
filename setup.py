@@ -48,7 +48,7 @@ setup(
     tests_require=[
         "mercantile",
         "morecantile",
-        "pytest",
+        "pytest<5.4",
         "pytest-asyncio<0.11.0",
         "pytest-cov",
         "rasterio",

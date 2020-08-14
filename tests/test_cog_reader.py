@@ -1,6 +1,7 @@
 import math
 import random
 
+import aiohttp
 from morecantile.models import TileMatrixSet
 import mercantile
 import numpy as np
@@ -12,7 +13,7 @@ from rio_tiler.io import cogeo
 from rio_tiler import utils as rio_tiler_utils
 from shapely.geometry import Polygon
 
-from aiocogeo import config
+from aiocogeo import config, COGReader
 from aiocogeo.ifd import IFD
 from aiocogeo.tag import Tag
 from aiocogeo.errors import InvalidTiffError, TileNotFoundError
@@ -450,3 +451,13 @@ async def test_file_not_found(create_cog_reader, infile):
     with pytest.raises(FileNotFoundError):
         async with create_cog_reader(infile) as cog:
             ...
+
+
+@pytest.mark.asyncio
+async def test_inject_session():
+    async with aiohttp.ClientSession() as session:
+        async with COGReader("https://async-cog-reader-test-data.s3.amazonaws.com/webp_cog.tif", kwargs={"session": session}):
+            pass
+        # Confirm session is still open
+        assert not session.closed
+        assert session._trace_configs
