@@ -11,6 +11,7 @@ from rasterio.warp import transform_bounds
 from rasterio.windows import Window
 from rio_tiler.io import cogeo
 from rio_tiler import utils as rio_tiler_utils
+from rio_tiler.mercator import get_zooms
 from shapely.geometry import Polygon
 
 from aiocogeo import config, COGReader
@@ -174,7 +175,8 @@ async def test_cog_calculate_image_tiles(infile, create_cog_reader):
 @pytest.mark.parametrize("infile", TEST_DATA[:-2])
 async def test_cog_read(infile, create_cog_reader):
     async with create_cog_reader(infile) as cog:
-        zoom = math.floor(math.log2((2 * math.pi * 6378137 / 256) / cog.geotransform().a))
+        with rasterio.open(infile) as ds:
+            _, zoom = get_zooms(ds)
         centroid = Polygon.from_bounds(*transform_bounds(cog.epsg, "EPSG:4326", *cog.bounds)).centroid
         tile = mercantile.tile(centroid.x, centroid.y, zoom)
 
@@ -183,25 +185,21 @@ async def test_cog_read(infile, create_cog_reader):
         arr = await cog.read(tile_native_bounds, (256, 256))
         rio_tile_arr, rio_tile_mask = cogeo.tile(infile, tile.x, tile.y, tile.z, tilesize=256, resampling_method="bilinear")
 
-        if np.ma.is_masked(arr):
-            tile_arr = np.ma.getdata(tile)
-            tile_mask = np.ma.getmask(tile)
+        if cog.is_masked:
+            tile_arr = np.ma.getdata(arr)
+            tile_mask = np.ma.getmask(arr)
 
             # Make sure image data is the same
-            assert pytest.approx(np.min(tile_arr), 2) == np.min(rio_tile_arr)
-            assert pytest.approx(np.mean(tile_arr), 2) == np.mean(rio_tile_arr)
-            assert pytest.approx(np.max(tile_arr), 2) == np.max(rio_tile_arr)
+            assert pytest.approx(tile_arr - rio_tile_arr, 1) == np.zeros(tile_arr.shape)
 
             # Make sure mask data is the same
             rio_mask_counts = np.unique(rio_tile_mask, return_counts=True)
             tile_mask_counts = np.unique(tile_mask, return_counts=True)
-            assert rio_mask_counts[0].all() == tile_mask_counts[0].all()
-            assert rio_mask_counts[1].all() == tile_mask_counts[1].all()
-        else:
-            assert pytest.approx(np.min(tile), 2) == np.min(rio_tile_arr)
-            assert pytest.approx(np.mean(tile), 2) == np.mean(rio_tile_arr)
-            assert pytest.approx(np.max(tile), 2) == np.max(rio_tile_arr)
+            assert len(rio_mask_counts[0]) == len(tile_mask_counts[0])
+            assert rio_mask_counts[1][0] * cog.profile['count'] == tile_mask_counts[1][0]
 
+        else:
+            assert pytest.approx(arr - rio_tile_arr, 1) == np.zeros(arr.shape)
 
 @pytest.mark.asyncio
 async def test_cog_read_internal_mask(create_cog_reader):
