@@ -201,6 +201,22 @@ async def test_cog_read(infile, create_cog_reader):
         else:
             assert pytest.approx(arr - rio_tile_arr, 1) == np.zeros(arr.shape)
 
+
+@pytest.mark.asyncio
+async def test_cog_read_single_band(create_cog_reader):
+    infile = "https://async-cog-reader-test-data.s3.amazonaws.com/int16_deflate.tif"
+    async with create_cog_reader(infile) as cog:
+        assert cog.profile['count'] == 1
+        with rasterio.open(infile) as ds:
+            _, zoom = get_zooms(ds)
+        centroid = Polygon.from_bounds(*transform_bounds(cog.epsg, "EPSG:4326", *cog.bounds)).centroid
+        tile = mercantile.tile(centroid.x, centroid.y, zoom)
+        tile_native_bounds = transform_bounds("EPSG:4326", cog.epsg, *mercantile.bounds(tile))
+        arr = await cog.read(tile_native_bounds, (256, 256))
+        assert arr.shape == (256, 256)
+        assert arr.dtype == cog.profile['dtype']
+
+
 @pytest.mark.asyncio
 async def test_cog_read_internal_mask(create_cog_reader):
     async with create_cog_reader("https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_masked.tif") as cog:
