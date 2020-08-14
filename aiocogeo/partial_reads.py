@@ -274,7 +274,7 @@ class PartialReadBase(abc.ABC):
         if clipped.shape[0] == 1:
             _clipped = np.squeeze(_clipped, axis=2)
         img = Image.fromarray(_clipped)
-        resized = np.array(img.resize((out_shape[0], out_shape[1]), resample=Image.BILINEAR))
+        resized = np.array(img.resize((out_shape[0], out_shape[1]), resample=Image.BILINEAR)).astype(img_tiles.dtype)
         if clipped.shape[0] != 1:
             resized = np.rollaxis(resized, 2, 0)
         if self._add_mask:
