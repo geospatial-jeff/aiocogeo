@@ -20,6 +20,7 @@ TEST_DATA = [
     "https://async-cog-reader-test-data.s3.amazonaws.com/lzw_cog.tif",  # 3 band lzw (RGBA)
     "https://async-cog-reader-test-data.s3.amazonaws.com/webp_cog.tif",
     "s3://async-cog-reader-test-data/lzw_cog.tif",
+    "https://async-cog-reader-test-data.s3.amazonaws.com/deflate_cog.tif",
     "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_nodata.tif",
     "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image.tif",
     "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_masked.tif",

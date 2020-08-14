@@ -122,6 +122,7 @@ class COGReader(PartialReadInterface):
     def nodata(self) -> Optional[int]:
         return self.ifds[0].nodata
 
+
     async def _read_header(self) -> None:
         """Internal method to read image header and parse into IFDs and Tags"""
         next_ifd_offset = 1
