@@ -373,6 +373,29 @@ async def test_point(create_cog_reader, infile):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
+    "infile", TEST_DATA[:-1]
+)
+async def test_preview(create_cog_reader, infile):
+    async with create_cog_reader(infile) as cog:
+        profile = cog.profile
+        preview = await cog.preview(max_size=1024)
+
+        src_aspect_ratio = profile['height'] / profile['width']
+        dst_aspect_ratio = preview.shape[-2] / preview.shape[-1]
+        assert pytest.approx(src_aspect_ratio, 0.001) == dst_aspect_ratio
+        assert preview.shape[-2] <= 1024
+        assert preview.shape[-1] <= 1024
+
+
+@pytest.mark.asyncio
+async def test_preview_width_height(create_cog_reader):
+    async with create_cog_reader("https://async-cog-reader-test-data.s3.amazonaws.com/webp_cog.tif") as cog:
+        preview = await cog.preview(width=512, height=512)
+        assert preview.shape == (3, 512, 512)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
     "infile", TEST_DATA
 )
 async def test_read_not_in_bounds(create_cog_reader, infile):

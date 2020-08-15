@@ -269,6 +269,37 @@ class COGReader(PartialReadInterface):
         return tile[:, xindex, yindex]
 
 
+    async def preview(
+        self,
+        max_size: int = 1024,
+        height: Optional[int] = None,
+        width: Optional[int] = None,
+        resample_method: int = Image.NEAREST
+    ) -> Union[np.ndarray, np.ma.masked_array]:
+        """
+        Create downsampled version of the COG
+
+        https://github.com/cogeotiff/rio-tiler/blob/master/rio_tiler/reader.py#L272-L315
+        """
+        ifd = self.ifds[0]
+        if not height and not width:
+            if max(ifd.ImageHeight.value, ifd.ImageWidth.value) < max_size:
+                height, width = ifd.ImageHeight.value, ifd.ImageWidth.value
+            else:
+                ratio = ifd.ImageHeight.value / ifd.ImageWidth.value
+                if ratio > 1:
+                    height = max_size
+                    width = math.ceil(height / ratio)
+                else:
+                    width = max_size
+                    height = math.ceil(width * ratio)
+        return await self.read(
+            bounds=self.bounds,
+            shape=(width, height),
+            resample_method=resample_method
+        )
+
+
     def create_tile_matrix_set(self, identifier: str = None) -> Dict[str, Any]:
         """Create an OGC TileMatrixSet where each TileMatrix corresponds to an overview"""
         matrices = []
