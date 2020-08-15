@@ -274,12 +274,12 @@ class PartialReadBase(abc.ABC):
         if clipped.shape[0] == 1:
             _clipped = np.squeeze(_clipped, axis=2)
         img = Image.fromarray(_clipped)
-        resized = np.array(img.resize((out_shape[0], out_shape[1]), resample=Image.BILINEAR)).astype(img_tiles.dtype)
+        resized = np.array(img.resize((out_shape[0], out_shape[1]), resample=resample_method)).astype(img_tiles.dtype)
         if clipped.shape[0] != 1:
             resized = np.rollaxis(resized, 2, 0)
         if self._add_mask:
             mask = Image.fromarray(clipped.mask[0,...])
-            resized_mask = np.array(mask.resize((out_shape[0], out_shape[1]), resample=resample_method))
+            resized_mask = np.array(mask.resize((out_shape[0], out_shape[1]), resample=Image.BILINEAR))
             resized_mask = np.stack((resized_mask for _ in range(img_tiles.bands)))
             resized = np.ma.masked_array(resized, resized_mask)
         return resized
