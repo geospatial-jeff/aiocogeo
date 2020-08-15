@@ -1,3 +1,10 @@
+0.1.7 (2020-08-15)
+------------------
+- Add method to read pixel values at a given point (#62)
+- Add method to create downsampled version of the image (#63)
+- Bugfixes (#60, #61)
+
+
 0.1.6 (2020-6-24)
 ------------------
 - Use PIL for resize instead of skimage (#57)
