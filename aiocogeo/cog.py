@@ -1,6 +1,7 @@
 import asyncio
 from dataclasses import dataclass, field
 import logging
+import math
 from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import urljoin
 import uuid
@@ -247,6 +248,26 @@ class COGReader(PartialReadInterface):
         )
 
         return postprocessed
+
+
+    async def point(self, x: Union[float, int], y: Union[float, int]) -> Union[np.ndarray, np.ma.masked_array]:
+        """Read pixel values for the given point"""
+        ifd = self.ifds[0]
+        geotransform = self.geotransform()
+        invgt = ~geotransform
+
+        # Transform request point to pixel coordinates relative to geotransform
+        image_x, image_y = invgt * (x, y)
+        xtile = math.floor((image_x + 1e-6) / ifd.TileWidth.value)
+        ytile = math.floor((image_y + 1e-6) / ifd.TileHeight.value)
+        tile = await self.get_tile(xtile, ytile, 0)
+
+        # Calculate index of pixel relative to the tile
+        xindex = int(image_x % ifd.TileWidth.value)
+        yindex = int(image_y % ifd.TileHeight.value)
+
+        return tile[:, xindex, yindex]
+
 
     def create_tile_matrix_set(self, identifier: str = None) -> Dict[str, Any]:
         """Create an OGC TileMatrixSet where each TileMatrix corresponds to an overview"""

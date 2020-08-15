@@ -360,6 +360,21 @@ async def test_boundless_get_tile(create_cog_reader, infile, monkeypatch):
 @pytest.mark.parametrize(
     "infile", TEST_DATA
 )
+async def test_point(create_cog_reader, infile):
+    async with create_cog_reader(infile) as cog:
+        bounds = cog.bounds
+        pt = await cog.point(x=bounds[0], y=bounds[3])
+        tile = await cog.get_tile(0,0,0)
+        if cog.is_masked or cog.nodata is not None:
+            assert np.equal(pt.data, tile.data[:,0,0]).all()
+        else:
+            assert np.equal(pt, tile[:,0,0]).all()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "infile", TEST_DATA
+)
 async def test_read_not_in_bounds(create_cog_reader, infile):
     tile = mercantile.Tile(x=0,y=0,z=25)
     bounds = mercantile.xy_bounds(tile)
