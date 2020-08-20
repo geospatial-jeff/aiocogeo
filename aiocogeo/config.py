@@ -39,3 +39,8 @@ BOUNDLESS_READ: bool = False if os.getenv(
 
 # Determines the fill value used for boundless reads
 BOUNDLESS_READ_FILL_VALUE: int = int(os.getenv("BOUNDLESS_READ_FILL_VALUE", "0"))
+
+# Enable reading from a S3 requester pays bucket
+AWS_REQUEST_PAYER: str = os.getenv(
+    "AWS_REQUEST_PAYER", None
+)

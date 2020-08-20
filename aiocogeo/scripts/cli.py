@@ -24,7 +24,11 @@ def _make_bold(s, **kwargs):
 def _get_ifd_stats(ifds):
     ifd_stats = []
     for idx, ifd in enumerate(ifds):
-        tile_sizes = [b / 1000 for b in ifd.TileByteCounts.value]
+        if not isinstance(ifd.TileByteCounts.value, tuple):
+            byte_counts = [ifd.TileByteCounts.value]
+        else:
+            byte_counts = ifd.TileByteCounts.value
+        tile_sizes = [b / 1000 for b in byte_counts]
         mean_tile_size = round(sum(tile_sizes) / len(tile_sizes), 3)
         ifd_stats.append({
             'id': idx,

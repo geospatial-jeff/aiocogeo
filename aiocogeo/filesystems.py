@@ -212,9 +212,12 @@ class LocalFilesystem(Filesystem):
 class S3Filesystem(Filesystem):
 
     async def _range_request(self, start: int, offset: int) -> bytes:
+        kwargs = {}
+        if config.AWS_REQUEST_PAYER:
+            kwargs['RequestPayer'] = config.AWS_REQUEST_PAYER
         begin = time.time()
         try:
-            req = await self.object.get(Range=f'bytes={start}-{start+offset}')
+            req = await self.object.get(Range=f'bytes={start}-{start+offset}', **kwargs)
         except botocore.exceptions.ClientError as e:
             await self._close()
             raise FileNotFoundError(f"File not found: {self.filepath}") from e
