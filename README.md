@@ -140,6 +140,7 @@ Configuration options are exposed through environment variables:
 - **BOUNDLESS_READ_FILL_VALUE** - determines the value used to fill boundless reads (defaults to 0)
 - **LOG_LEVEL** - determines the log level used by the package (defaults to ERROR)
 - **VERBOSE_LOGS** - enables verbose logging, designed for use when `LOG_LEVEL=DEBUG` (defaults to FALSE)
+- **AWS_REQUEST_PAYER** - set to `requester` to enable reading from S3 RequesterPays buckets.
 
 Refer to [`aiocogeo/config.py`](https://github.com/geospatial-jeff/aiocogeo/blob/master/aiocogeo/config.py) for more details about configuration options.
 
