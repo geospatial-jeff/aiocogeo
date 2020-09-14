@@ -5,7 +5,7 @@ with open("README.md") as f:
 
 extras = {
     "s3": ["aioboto3"],
-    "tiler": ["mercantile", "rasterio"]
+    "tiler": ["mercantile", "morecantile", "rasterio"]
 }
 
 setup(
