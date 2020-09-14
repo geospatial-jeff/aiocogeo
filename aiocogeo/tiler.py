@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import math
 from typing import List, Tuple
 
 import morecantile
@@ -80,6 +81,31 @@ class COGTiler:
                 tile_bounds, shape=(width, height), resample_method=resample_method
             )
         return arr
+
+    async def preview(
+        self,
+        width: int = None,
+        height: int = None,
+        max_size: int = 1024,
+        resample_method: int = Image.NEAREST,
+    ):
+        # https://github.com/cogeotiff/rio-tiler/blob/master/rio_tiler/reader.py#L293-L303
+        if not height and not width:
+            if max(self.profile["height"], self.profile["width"]) < max_size:
+                height, width = self.profile["height"], self.profile["width"]
+            else:
+                ratio = self.profile["height"] / self.profile["width"]
+                if ratio > 1:
+                    height = max_size
+                    width = math.ceil(height / ratio)
+                else:
+                    width = max_size
+                    height = math.ceil(width * ratio)
+        return await self.cog.read(
+            bounds=self.cog.bounds,
+            shape=(width, height),
+            resample_method=resample_method,
+        )
 
     async def info(self) -> COGInfo:
         wgs84_bounds = transform_bounds(
