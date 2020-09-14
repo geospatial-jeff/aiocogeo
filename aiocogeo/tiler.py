@@ -1,15 +1,26 @@
 from dataclasses import dataclass
+from typing import List
 
 import morecantile
 import numpy as np
 from rasterio.crs import CRS
 from rasterio.transform import from_bounds
 from rasterio.warp import reproject, transform_bounds
+from rio_tiler.mercator import zoom_for_pixelsize
 
 from .cog import COGReader
 
 
 DEFAULT_TMS = morecantile.tms.get("WebMercatorQuad")
+
+
+@dataclass
+class COGInfo:
+    min_zoom: int
+    max_zoom: int
+    bounds: List[float]
+    dtype: str
+    color_interp: str
 
 
 @dataclass
@@ -48,3 +59,22 @@ class COGTiler:
         else:
             arr = await self.cog.read(tile_bounds, (width, height))
         return arr
+
+    async def info(self) -> COGInfo:
+        wgs84_bounds = transform_bounds(
+            CRS.from_epsg(self.cog.epsg),
+            CRS.from_epsg(4326),
+            *self.cog.bounds
+        )
+        mercator_resolution = max(self.profile['transform'][0], abs(self.profile['transform'][4]))
+        max_zoom = zoom_for_pixelsize(mercator_resolution)
+        min_zoom = zoom_for_pixelsize(mercator_resolution * max(self.profile['width'], self.profile['height']) / 256)
+
+        return COGInfo(
+            min_zoom=min_zoom,
+            max_zoom=max_zoom,
+            bounds=list(wgs84_bounds),
+            dtype=self.profile['dtype'],
+            color_interp=self.profile['photometric']
+        )
+
