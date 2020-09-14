@@ -4,7 +4,8 @@ with open("README.md") as f:
     desc = f.read()
 
 extras = {
-    "s3": ["aioboto3"]
+    "s3": ["aioboto3"],
+    "tiler": ["mercantile", "rasterio"]
 }
 
 setup(
