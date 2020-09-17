@@ -333,3 +333,35 @@ class CompositeReader:
     async def apply(self, func: Callable) -> List[Any]:
         futs = [func(reader) for reader in self.readers]
         return await asyncio.gather(*futs)
+
+    async def get_tile(self, x: int, y: int, z: int) -> List[np.ndarray]:
+        """Fetch a tile from all readers"""
+        return await self.apply(
+            func=lambda r: r.get_tile(x, y, z),
+        )
+
+    async def read(
+        self,
+        bounds: Tuple[float, float, float, float],
+        shape: Tuple[int, int],
+        resample_method: int = Image.NEAREST,
+    ):
+        return await self.apply(
+            func=lambda r: r.read(bounds, shape, resample_method)
+        )
+
+    async def point(self, x: Union[float, int], y: Union[float, int]) -> List[Union[np.ndarray, np.ma.masked_array]]:
+        return await self.apply(
+            func=lambda r: r.point(x, y)
+        )
+
+    async def preview(
+        self,
+        max_size: int = 1024,
+        height: Optional[int] = None,
+        width: Optional[int] = None,
+        resample_method: int = Image.NEAREST
+    ) -> List[Union[np.ndarray, np.ma.masked_array]]:
+        return await self.apply(
+            func=lambda r: r.preview(max_size, height, width, resample_method)
+        )
