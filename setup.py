@@ -55,7 +55,7 @@ setup(
         "pytest-asyncio<0.11.0",
         "pytest-cov",
         "shapely",
+        "botocore==1.15.32",
         "aioboto3",
-        "boto3==1.12.32"
     ]
 )
