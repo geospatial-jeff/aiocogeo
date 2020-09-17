@@ -1,3 +1,4 @@
+import abc
 import asyncio
 from dataclasses import dataclass, field
 import logging
@@ -23,7 +24,38 @@ logger.setLevel(config.LOG_LEVEL)
 
 
 @dataclass
-class COGReader(PartialReadInterface):
+class ReaderMixin(abc.ABC):
+
+    @abc.abstractmethod
+    async def get_tile(self, x: int, y: int, z: int) -> Union[np.ndarray, List[np.ndarray]]:
+        ...
+
+    @abc.abstractmethod
+    async def read(
+        self,
+        bounds: Tuple[float, float, float, float],
+        shape: Tuple[int, int],
+        resample_method: int = Image.NEAREST,
+    ) -> Union[Union[np.ndarray, np.ma.masked_array], List[Union[np.ndarray, np.ma.masked_array]]]:
+        ...
+
+    @abc.abstractmethod
+    async def point(self, x: Union[float, int], y: Union[float, int]) -> Union[Union[np.ndarray, np.ma.masked_array], List[Union[np.ndarray, np.ma.masked_array]]]:
+        ...
+
+    @abc.abstractmethod
+    async def preview(
+        self,
+        max_size: int = 1024,
+        height: Optional[int] = None,
+        width: Optional[int] = None,
+        resample_method: int = Image.NEAREST
+    ) -> Union[Union[np.ndarray, np.ma.masked_array], List[Union[np.ndarray, np.ma.masked_array]]]:
+        ...
+
+
+@dataclass
+class COGReader(ReaderMixin, PartialReadInterface):
     filepath: str
     ifds: Optional[List[ImageIFD]] = field(default_factory=lambda: [])
     mask_ifds: Optional[List[MaskIFD]] = field(default_factory=lambda: [])
@@ -327,7 +359,7 @@ class COGReader(PartialReadInterface):
 
 
 @dataclass
-class CompositeReader:
+class CompositeReader(ReaderMixin):
     readers: List[COGReader]
 
     async def apply(self, func: Callable) -> List[Any]:

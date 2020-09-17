@@ -1,11 +1,11 @@
 from dataclasses import dataclass
 import math
-from typing import List, Tuple
+from typing import List, Tuple, Type
 
 import numpy as np
 from PIL import Image
 
-from .cog import COGReader
+from .cog import COGReader, ReaderMixin
 
 try:
     import morecantile
@@ -37,7 +37,7 @@ class COGInfo:
 
 @dataclass
 class COGTiler:
-    cog: COGReader
+    cog: Type[ReaderMixin]
 
     def __post_init__(self):
         self.profile = self.cog.profile
