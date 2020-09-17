@@ -2,18 +2,28 @@ from dataclasses import dataclass
 import math
 from typing import List, Tuple
 
-import morecantile
 import numpy as np
 from PIL import Image
-from rasterio.crs import CRS
-from rasterio.transform import from_bounds
-from rasterio.warp import reproject, transform_bounds, transform as transform_coords
-from rio_tiler.mercator import zoom_for_pixelsize
 
 from .cog import COGReader
 
+try:
+    import morecantile
+    from morecantile import TileMatrixSet
+    from rasterio.crs import CRS
+    from rasterio.transform import from_bounds
+    from rasterio.warp import reproject, transform_bounds, transform as transform_coords
+    from rio_tiler.mercator import zoom_for_pixelsize
 
-DEFAULT_TMS = morecantile.tms.get("WebMercatorQuad")
+    DEFAULT_TMS = morecantile.tms.get("WebMercatorQuad")
+    WGS84 = CRS.from_epsg(4326)
+except ImportError:
+    CRS = None
+    DEFAULT_TMS = None
+    TileMatrixSet = None
+    WGS84 = None
+
+
 
 
 @dataclass
@@ -62,7 +72,7 @@ class COGTiler:
         y: int,
         z: int,
         tile_size: int = 256,
-        tms: morecantile.TileMatrixSet = DEFAULT_TMS,
+        tms: TileMatrixSet = DEFAULT_TMS,
         resample_method: int = Image.NEAREST,
     ) -> np.ndarray:
         tile = morecantile.Tile(x=x, y=y, z=z)
@@ -86,7 +96,7 @@ class COGTiler:
     async def point(
         self,
         coords: Tuple[float, float],
-        coords_crs: CRS = CRS.from_epsg(4326),
+        coords_crs: CRS = WGS84,
     ) -> np.ndarray:
         if coords_crs != self.cog.epsg:
             coords = [pt[0] for pt in transform_coords(
@@ -99,7 +109,7 @@ class COGTiler:
     async def part(
         self,
         bounds: Tuple[float, float, float, float],
-        bounds_crs: CRS = CRS.from_epsg(4326),
+        bounds_crs: CRS = WGS84,
         width: int = None,
         height: int = None
     ) -> np.ndarray:
