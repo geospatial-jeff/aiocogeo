@@ -1,11 +1,12 @@
 import asyncio
-from dataclasses import dataclass
-from typing import List, Tuple
+from dataclasses import dataclass, field
+from typing import List, Set, Tuple
 from urllib.parse import urlsplit
 
 import aiohttp
 import numpy as np
 from PIL import Image
+from stac_pydantic.shared import MimeTypes
 
 from .cog import COGReader, CompositeReader
 
@@ -14,6 +15,7 @@ from .cog import COGReader, CompositeReader
 class STACReader:
     filepath: str
     reader: CompositeReader = None
+    include_types: Set[MimeTypes] = field(default_factory={MimeTypes.cog})
 
     async def __aenter__(self):
         splits = urlsplit(self.filepath)
@@ -29,7 +31,7 @@ class STACReader:
         # Create a reader for each asset with a COG mime type
         reader_futs = []
         for asset in item["assets"]:
-            if item["assets"][asset]["type"] == "image/x.geotiff":
+            if item["assets"][asset]["type"] in self.include_types:
                 reader = COGReader(item["assets"][asset]["href"]).__aenter__()
                 reader_futs.append(reader)
         self.reader = CompositeReader(await asyncio.gather(*reader_futs))

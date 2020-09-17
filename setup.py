@@ -38,7 +38,8 @@ setup(
         "affine",
         "imagecodecs",
         "typer",
-        "Pillow"
+        "Pillow",
+        "stac-pydantic>=1.3.*"
     ],
     test_suite="tests",
     setup_requires=[
