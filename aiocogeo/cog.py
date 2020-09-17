@@ -361,6 +361,13 @@ class COGReader(ReaderMixin, PartialReadInterface):
 @dataclass
 class CompositeReader(ReaderMixin):
     readers: List[COGReader]
+    aliases: Optional[List[str]] = None
+
+    def __post_init__(self):
+        if self.aliases:
+            for idx, alias in enumerate(self.aliases):
+                setattr(self, alias, self.readers[idx])
+
 
     async def apply(self, func: Callable) -> List[Any]:
         futs = [func(reader) for reader in self.readers]
