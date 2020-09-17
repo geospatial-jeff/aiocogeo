@@ -56,5 +56,6 @@ setup(
         "pytest-cov",
         "shapely",
         "aioboto3",
+        "boto3==1.12.32"
     ]
 )
