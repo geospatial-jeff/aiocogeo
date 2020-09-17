@@ -89,9 +89,9 @@ class COGTiler:
         coords_crs: CRS = CRS.from_epsg(4326),
     ) -> np.ndarray:
         if coords_crs != self.cog.epsg:
-            coords = transform_coords(
+            coords = [pt[0] for pt in transform_coords(
                 coords_crs, CRS.from_epsg(self.cog.epsg), [coords[0]], [coords[1]]
-            )
+            )]
         arr = await self.cog.point(*coords)
         return arr
 
@@ -108,7 +108,7 @@ class COGTiler:
 
         if not height or not width:
             width = math.ceil((bounds[2] - bounds[0]) / self.profile['transform'].a)
-            height = math.ceil((bounds[3] - bounds[1]) / self.profile['transofrm'].e)
+            height = math.ceil((bounds[3] - bounds[1]) / -self.profile['transform'].e)
 
         arr = await self.cog.read(bounds=bounds, shape=(width, height))
         return arr
