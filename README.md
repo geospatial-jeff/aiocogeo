@@ -6,6 +6,9 @@ pip install aiocogeo
 
 # With S3 filesystem
 pip install aiocogeo[s3]
+
+# With tiler
+pip install aiocogeo[tiler]
 ```
 
 ## Usage
@@ -130,6 +133,18 @@ async with COGReader("https://async-cog-reader-test-data.s3.amazonaws.com/naip_i
   <img src="https://async-cog-reader-test-data.s3.amazonaws.com/readme/masked_tile.jpg" width="300" />
   <img src="https://async-cog-reader-test-data.s3.amazonaws.com/readme/mask.jpg" width="300" /> 
 </p>
+
+### Tiling
+Aiocogeo has a `tiling` extra (`pip install aiocogeo[tiling]`) which adds coordinate system handling via [`rasterio`](https://github.com/mapbox/rasterio) and [`morecantile`](https://github.com/developmentseed/morecantile) to primarily support dynamic tiling use cases.  The interface is intentionally designed to be similar to [`rio-tiler-crs`](https://github.com/cogeotiff/rio-tiler-crs).
+
+```python
+from aiocogeo.tiler import COGTiler
+
+async with COGReader("http://oin-hotosm.s3.amazonaws.com/5a95f32c2553e6000ce5ad2e/0/10edab38-1bdd-4c06-b83d-6e10ac532b7d.tif") as cog:
+    tiler = COGTiler(cog)
+    tile = await cog.tile(x=691559, y=956905, z=21, tile_size=256)
+``` 
+
 
 ### Configuration
 Configuration options are exposed through environment variables:

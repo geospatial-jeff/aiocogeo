@@ -4,7 +4,8 @@ with open("README.md") as f:
     desc = f.read()
 
 extras = {
-    "s3": ["aioboto3"]
+    "s3": ["aioboto3"],
+    "tiler": ["morecantile", "rasterio", "rio-tiler==2.0b9"]
 }
 
 setup(
@@ -48,12 +49,14 @@ setup(
     tests_require=[
         "mercantile",
         "morecantile",
+        "rasterio",
+        "rio-tiler==2.0b9",
         "pytest<5.4",
         "pytest-asyncio<0.11.0",
         "pytest-cov",
-        "rasterio",
-        "rio-tiler==2.0a4",
         "shapely",
+        "botocore==1.15.32",
+        "boto3==1.12.32",
         "aioboto3",
     ]
 )
