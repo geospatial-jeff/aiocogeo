@@ -7,7 +7,7 @@ import numpy as np
 from PIL import Image
 from rasterio.crs import CRS
 from rasterio.transform import from_bounds
-from rasterio.warp import reproject, transform_bounds
+from rasterio.warp import reproject, transform_bounds, transform as transform_coords
 from rio_tiler.mercator import zoom_for_pixelsize
 
 from .cog import COGReader
@@ -80,6 +80,37 @@ class COGTiler:
             arr = await self.cog.read(
                 tile_bounds, shape=(width, height), resample_method=resample_method
             )
+        return arr
+
+
+    async def point(
+        self,
+        coords: Tuple[float, float],
+        coords_crs: CRS = CRS.from_epsg(4326),
+    ) -> np.ndarray:
+        if coords_crs != self.cog.epsg:
+            coords = transform_coords(
+                coords_crs, CRS.from_epsg(self.cog.epsg), [coords[0]], [coords[1]]
+            )
+        arr = await self.cog.point(*coords)
+        return arr
+
+
+    async def part(
+        self,
+        bounds: Tuple[float, float, float, float],
+        bounds_crs: CRS = CRS.from_epsg(4326),
+        width: int = None,
+        height: int = None
+    ) -> np.ndarray:
+        if bounds_crs != self.cog.epsg:
+            bounds = transform_bounds(bounds_crs, CRS.from_epsg(self.cog.epsg), *bounds)
+
+        if not height or not width:
+            width = math.ceil((bounds[2] - bounds[0]) / self.profile['transform'].a)
+            height = math.ceil((bounds[3] - bounds[1]) / self.profile['transofrm'].e)
+
+        arr = await self.cog.read(bounds=bounds, shape=(width, height))
         return arr
 
     async def preview(
