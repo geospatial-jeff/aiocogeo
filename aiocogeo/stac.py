@@ -4,14 +4,15 @@ from typing import List
 from urllib.parse import urlsplit
 
 import aiohttp
+import numpy as np
 
-from .cog import COGReader
+from .cog import COGReader, CompositeReader
 
 
 @dataclass
 class STACReader:
     filepath: str
-    readers: List[COGReader] = None
+    reader: CompositeReader = None
 
     async def __aenter__(self):
         splits = urlsplit(self.filepath)
@@ -24,18 +25,21 @@ class STACReader:
             # TODO: support s3
             pass
 
+        # Create a reader for each asset with a COG mime type
         reader_futs = []
         for asset in item["assets"]:
             if item["assets"][asset]["type"] == "image/x.geotiff":
                 reader = COGReader(item["assets"][asset]["href"]).__aenter__()
                 reader_futs.append(reader)
-        self.readers = await asyncio.gather(*reader_futs)
+        self.reader = CompositeReader(await asyncio.gather(*reader_futs))
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        for reader in self.readers:
+        for reader in self.reader.readers:
             await reader._file_reader._close()
 
-    async def get_tile(self, x: int, y: int, z: int):
-        futs = [reader.get_tile(x, y, z) for reader in self.readers]
-        return await asyncio.gather(*futs)
+    async def get_tile(self, x: int, y: int, z: int) -> np.ndarray:
+        """Fetch a tile from all readers"""
+        return await self.reader.apply(
+            func=lambda r: r.get_tile(x, y, z),
+        )
