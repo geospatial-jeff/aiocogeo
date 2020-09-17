@@ -194,9 +194,9 @@ async def test_cog_read(infile, create_cog_reader):
         )
 
         arr = await cog.read(tile_native_bounds, (256, 256))
-        rio_tile_arr, rio_tile_mask = cogeo.tile(
-            infile, tile.x, tile.y, tile.z, tilesize=256, resampling_method="bilinear"
-        )
+
+        with cogeo_reader(infile) as ds:
+            rio_tile_arr, rio_tile_mask = ds.tile(tile.x, tile.y, tile.z, tilesize=256, resampling_method="bilinear")
 
         if cog.is_masked:
             tile_arr = np.ma.getdata(arr)

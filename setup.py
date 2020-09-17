@@ -49,11 +49,11 @@ setup(
     tests_require=[
         "mercantile",
         "morecantile",
+        "rasterio",
+        "rio-tiler==2.0b9",
         "pytest<5.4",
         "pytest-asyncio<0.11.0",
         "pytest-cov",
-        "rasterio",
-        "rio-tiler==2.0a4",
         "shapely",
         "aioboto3",
     ]
