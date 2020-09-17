@@ -90,9 +90,7 @@ async def test_cog_read_internal_tile(infile, create_cog_reader):
 
         with rasterio.open(infile) as src:
             window = Window(0, 0, ifd.TileWidth.value, ifd.TileHeight.value)
-            rio_tile = src.read(
-                window=window
-            )
+            rio_tile = src.read(window=window)
             # Internal mask
             if np.ma.is_masked(tile) and cog.is_masked:
                 assert cog.is_masked
@@ -113,7 +111,9 @@ async def test_cog_read_internal_tile(infile, create_cog_reader):
             # Nodata
             elif ifd.nodata is not None:
                 # Mask rio array to match aiocogeo output
-                rio_tile = np.ma.masked_where(rio_tile == src.profile['nodata'], rio_tile)
+                rio_tile = np.ma.masked_where(
+                    rio_tile == src.profile["nodata"], rio_tile
+                )
                 assert pytest.approx(np.min(rio_tile), 2) == np.min(tile)
                 assert pytest.approx(np.mean(rio_tile), 2) == np.mean(tile)
                 assert pytest.approx(np.max(rio_tile), 2) == np.max(tile)
@@ -126,15 +126,19 @@ async def test_cog_read_internal_tile(infile, create_cog_reader):
 
 @pytest.mark.asyncio
 async def test_cog_read_internal_tile_nodata(create_cog_reader):
-    infile_nodata = "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_nodata.tif"
+    infile_nodata = (
+        "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_nodata.tif"
+    )
     async with create_cog_reader(infile_nodata) as cog:
         nodata_tile = await cog.get_tile(0, 0, 0)
         # Confirm output array is masked using nodata value
         assert np.ma.is_masked(nodata_tile)
-        assert not np.any(nodata_tile == cog.profile['nodata'])
+        assert not np.any(nodata_tile == cog.profile["nodata"])
 
     # Confirm nodata mask is comparable to same image with internal mask
-    infile_internal_mask = "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_masked.tif"
+    infile_internal_mask = (
+        "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_masked.tif"
+    )
     async with create_cog_reader(infile_internal_mask) as cog:
         mask_tile = await cog.get_tile(0, 0, 0)
         # Confirm same number of masked values
@@ -154,7 +158,7 @@ async def test_cog_calculate_image_tiles(infile, create_cog_reader):
             gt.c,
             gt.f + ifd.TileHeight.value * gt.e,
             gt.c + ifd.TileWidth.value * gt.a,
-            gt.f
+            gt.f,
         )
 
         img_tile = cog._calculate_image_tiles(
@@ -163,7 +167,7 @@ async def test_cog_calculate_image_tiles(infile, create_cog_reader):
             tile_height=ifd.TileHeight.value,
             band_count=ifd.bands,
             ovr_level=ovr_level,
-            dtype=ifd.dtype
+            dtype=ifd.dtype,
         )
         assert img_tile.tlx == img_tile.tly == 0
         assert img_tile.width == cog.ifds[0].TileWidth.value
@@ -180,13 +184,19 @@ async def test_cog_read(infile, create_cog_reader):
     async with create_cog_reader(infile) as cog:
         with rasterio.open(infile) as ds:
             _, zoom = get_zooms(ds)
-        centroid = Polygon.from_bounds(*transform_bounds(cog.epsg, "EPSG:4326", *cog.bounds)).centroid
+        centroid = Polygon.from_bounds(
+            *transform_bounds(cog.epsg, "EPSG:4326", *cog.bounds)
+        ).centroid
         tile = mercantile.tile(centroid.x, centroid.y, zoom)
 
-        tile_native_bounds = transform_bounds("EPSG:4326", cog.epsg, *mercantile.bounds(tile))
+        tile_native_bounds = transform_bounds(
+            "EPSG:4326", cog.epsg, *mercantile.bounds(tile)
+        )
 
         arr = await cog.read(tile_native_bounds, (256, 256))
-        rio_tile_arr, rio_tile_mask = cogeo.tile(infile, tile.x, tile.y, tile.z, tilesize=256, resampling_method="bilinear")
+        rio_tile_arr, rio_tile_mask = cogeo.tile(
+            infile, tile.x, tile.y, tile.z, tilesize=256, resampling_method="bilinear"
+        )
 
         if cog.is_masked:
             tile_arr = np.ma.getdata(arr)
@@ -199,7 +209,9 @@ async def test_cog_read(infile, create_cog_reader):
             rio_mask_counts = np.unique(rio_tile_mask, return_counts=True)
             tile_mask_counts = np.unique(tile_mask, return_counts=True)
             assert len(rio_mask_counts[0]) == len(tile_mask_counts[0])
-            assert rio_mask_counts[1][0] * cog.profile['count'] == tile_mask_counts[1][0]
+            assert (
+                rio_mask_counts[1][0] * cog.profile["count"] == tile_mask_counts[1][0]
+            )
 
         else:
             assert pytest.approx(arr - rio_tile_arr, 1) == np.zeros(arr.shape)
@@ -209,21 +221,29 @@ async def test_cog_read(infile, create_cog_reader):
 async def test_cog_read_single_band(create_cog_reader):
     infile = "https://async-cog-reader-test-data.s3.amazonaws.com/int16_deflate.tif"
     async with create_cog_reader(infile) as cog:
-        assert cog.profile['count'] == 1
+        assert cog.profile["count"] == 1
         with rasterio.open(infile) as ds:
             _, zoom = get_zooms(ds)
-        centroid = Polygon.from_bounds(*transform_bounds(cog.epsg, "EPSG:4326", *cog.bounds)).centroid
+        centroid = Polygon.from_bounds(
+            *transform_bounds(cog.epsg, "EPSG:4326", *cog.bounds)
+        ).centroid
         tile = mercantile.tile(centroid.x, centroid.y, zoom)
-        tile_native_bounds = transform_bounds("EPSG:4326", cog.epsg, *mercantile.bounds(tile))
+        tile_native_bounds = transform_bounds(
+            "EPSG:4326", cog.epsg, *mercantile.bounds(tile)
+        )
         arr = await cog.read(tile_native_bounds, (256, 256))
         assert arr.shape == (256, 256)
-        assert arr.dtype == cog.profile['dtype']
+        assert arr.dtype == cog.profile["dtype"]
 
 
 @pytest.mark.asyncio
 async def test_cog_read_internal_mask(create_cog_reader):
-    async with create_cog_reader("https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_masked.tif") as cog:
-        tile = await cog.read(bounds=(-10526706.9, 4445561.5, -10526084.1, 4446144.0), shape=(512,512))
+    async with create_cog_reader(
+        "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_masked.tif"
+    ) as cog:
+        tile = await cog.read(
+            bounds=(-10526706.9, 4445561.5, -10526084.1, 4446144.0), shape=(512, 512)
+        )
         assert np.ma.is_masked(tile)
 
         # Confirm proportion of masked pixels
@@ -234,40 +254,51 @@ async def test_cog_read_internal_mask(create_cog_reader):
 
 @pytest.mark.asyncio
 async def test_cog_read_nodata_value(create_cog_reader):
-    infile_nodata = "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_nodata.tif"
+    infile_nodata = (
+        "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_nodata.tif"
+    )
     async with create_cog_reader(infile_nodata) as cog:
-        nodata_tile = await cog.read(bounds=(-10526706.9, 4445561.5, -10526084.1, 4446144.0), shape=(512,512))
+        nodata_tile = await cog.read(
+            bounds=(-10526706.9, 4445561.5, -10526084.1, 4446144.0), shape=(512, 512)
+        )
         assert np.ma.is_masked(nodata_tile)
 
     # Confirm nodata mask is comparable to same image with internal mask
-    infile_internal_mask = "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_masked.tif"
+    infile_internal_mask = (
+        "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_masked.tif"
+    )
     async with create_cog_reader(infile_internal_mask) as cog:
-        mask_tile = await cog.read(bounds=(-10526706.9, 4445561.5, -10526084.1, 4446144.0), shape=(512,512))
+        mask_tile = await cog.read(
+            bounds=(-10526706.9, 4445561.5, -10526084.1, 4446144.0), shape=(512, 512)
+        )
         assert np.ma.is_masked(mask_tile)
 
         # Nodata values wont be exactly the same because of difference in compression but they should be similar
         # proportional to number of masked values
-        proportion_masked = abs(nodata_tile.count() - mask_tile.count()) / max(nodata_tile.count(), mask_tile.count())
+        proportion_masked = abs(nodata_tile.count() - mask_tile.count()) / max(
+            nodata_tile.count(), mask_tile.count()
+        )
         assert pytest.approx(proportion_masked, abs=0.003) == 0
+
 
 @pytest.mark.asyncio
 async def test_cog_read_merge_range_requests(create_cog_reader, monkeypatch):
     infile = "https://async-cog-reader-test-data.s3.amazonaws.com/lzw_cog.tif"
-    bounds = (368461,3770591,368796,3770921)
+    bounds = (368461, 3770591, 368796, 3770921)
     shape = (512, 512)
 
     # Do a request without merged range requests
     async with create_cog_reader(infile) as cog:
         tile_data = await cog.read(bounds=bounds, shape=shape)
-        request_count = cog.requests['count']
-        bytes_requested = cog.requests['byte_count']
+        request_count = cog.requests["count"]
+        bytes_requested = cog.requests["byte_count"]
 
     # Do a request with merged range requests
     monkeypatch.setattr(config, "HTTP_MERGE_CONSECUTIVE_RANGES", True)
     async with create_cog_reader(infile) as cog:
         tile_data_merged = await cog.read(bounds=bounds, shape=shape)
-        merged_request_count = cog.requests['count']
-        merged_bytes_requested = cog.requests['byte_count']
+        merged_request_count = cog.requests["count"]
+        merged_bytes_requested = cog.requests["byte_count"]
 
     # Confirm we got the same tile with fewer requests
     assert merged_request_count < request_count
@@ -277,7 +308,9 @@ async def test_cog_read_merge_range_requests(create_cog_reader, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_cog_read_merge_range_requests_with_internal_nodata_mask(create_cog_reader, monkeypatch):
+async def test_cog_read_merge_range_requests_with_internal_nodata_mask(
+    create_cog_reader, monkeypatch
+):
     infile = "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_masked.tif"
     bounds = (-10526706.9, 4445561.5, -10526084.1, 4446144.0)
     shape = (512, 512)
@@ -286,16 +319,16 @@ async def test_cog_read_merge_range_requests_with_internal_nodata_mask(create_co
     async with create_cog_reader(infile) as cog:
         tile_data = await cog.read(bounds=bounds, shape=shape)
         # assert np.ma.is_masked(tile_data)
-        request_count = cog.requests['count']
-        bytes_requested = cog.requests['byte_count']
+        request_count = cog.requests["count"]
+        bytes_requested = cog.requests["byte_count"]
 
     # Do a request with merged range requests
     monkeypatch.setattr(config, "HTTP_MERGE_CONSECUTIVE_RANGES", True)
     async with create_cog_reader(infile) as cog:
         tile_data_merged = await cog.read(bounds=bounds, shape=shape)
         # assert np.ma.is_masked(tile_data_merged)
-        merged_request_count = cog.requests['count']
-        merged_bytes_requested = cog.requests['byte_count']
+        merged_request_count = cog.requests["count"]
+        merged_bytes_requested = cog.requests["byte_count"]
 
     # Confirm we got the same tile with fewer requests
     assert merged_request_count < request_count
@@ -306,7 +339,9 @@ async def test_cog_read_merge_range_requests_with_internal_nodata_mask(create_co
 
 @pytest.mark.asyncio
 async def test_boundless_read(create_cog_reader, monkeypatch):
-    infile = "http://async-cog-reader-test-data.s3.amazonaws.com/webp_web_optimized_cog.tif"
+    infile = (
+        "http://async-cog-reader-test-data.s3.amazonaws.com/webp_web_optimized_cog.tif"
+    )
     tile = mercantile.Tile(x=701, y=1634, z=12)
     bounds = mercantile.xy_bounds(tile)
 
@@ -315,23 +350,24 @@ async def test_boundless_read(create_cog_reader, monkeypatch):
 
     async with create_cog_reader(infile) as cog:
         with pytest.raises(TileNotFoundError):
-            tile = await cog.read(bounds=bounds, shape=(256,256))
+            tile = await cog.read(bounds=bounds, shape=(256, 256))
 
     monkeypatch.setattr(config, "BOUNDLESS_READ", True)
     async with create_cog_reader(infile) as cog:
-        await cog.read(bounds=bounds, shape=(256,256))
+        await cog.read(bounds=bounds, shape=(256, 256))
 
 
 @pytest.mark.asyncio
 async def test_boundless_read_fill_value(create_cog_reader, monkeypatch):
-    infile = "http://async-cog-reader-test-data.s3.amazonaws.com/webp_web_optimized_cog.tif"
+    infile = (
+        "http://async-cog-reader-test-data.s3.amazonaws.com/webp_web_optimized_cog.tif"
+    )
     tile = mercantile.Tile(x=701, y=1634, z=12)
     bounds = mercantile.xy_bounds(tile)
 
-
     async with create_cog_reader(infile) as cog:
         # Count number of pixels with a value of 1
-        tile = await cog.read(bounds=bounds, shape=(256,256))
+        tile = await cog.read(bounds=bounds, shape=(256, 256))
         counts = dict(zip(*np.unique(tile, return_counts=True)))
         assert counts[1] == 351
 
@@ -339,15 +375,13 @@ async def test_boundless_read_fill_value(create_cog_reader, monkeypatch):
         monkeypatch.setattr(config, "BOUNDLESS_READ_FILL_VALUE", 1)
 
         # Count number of pixels with a value of 1
-        tile = await cog.read(bounds=bounds, shape=(256,256))
+        tile = await cog.read(bounds=bounds, shape=(256, 256))
         counts = dict(zip(*np.unique(tile, return_counts=True)))
         assert counts[1] == 167583
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "infile", TEST_DATA
-)
+@pytest.mark.parametrize("infile", TEST_DATA)
 async def test_boundless_get_tile(create_cog_reader, infile, monkeypatch):
     async with create_cog_reader(infile) as cog:
         fill_value = random.randint(0, 100)
@@ -360,30 +394,26 @@ async def test_boundless_get_tile(create_cog_reader, infile, monkeypatch):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "infile", TEST_DATA
-)
+@pytest.mark.parametrize("infile", TEST_DATA)
 async def test_point(create_cog_reader, infile):
     async with create_cog_reader(infile) as cog:
         bounds = cog.bounds
         pt = await cog.point(x=bounds[0], y=bounds[3])
-        tile = await cog.get_tile(0,0,0)
+        tile = await cog.get_tile(0, 0, 0)
         if cog.is_masked or cog.nodata is not None:
-            assert np.equal(pt.data, tile.data[:,0,0]).all()
+            assert np.equal(pt.data, tile.data[:, 0, 0]).all()
         else:
-            assert np.equal(pt, tile[:,0,0]).all()
+            assert np.equal(pt, tile[:, 0, 0]).all()
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "infile", TEST_DATA[:-1]
-)
+@pytest.mark.parametrize("infile", TEST_DATA[:-1])
 async def test_preview(create_cog_reader, infile):
     async with create_cog_reader(infile) as cog:
         profile = cog.profile
         preview = await cog.preview(max_size=1024)
 
-        src_aspect_ratio = profile['height'] / profile['width']
+        src_aspect_ratio = profile["height"] / profile["width"]
         dst_aspect_ratio = preview.shape[-2] / preview.shape[-1]
         assert pytest.approx(src_aspect_ratio, 0.001) == dst_aspect_ratio
         assert preview.shape[-2] <= 1024
@@ -392,28 +422,24 @@ async def test_preview(create_cog_reader, infile):
 
 @pytest.mark.asyncio
 async def test_preview_width_height(create_cog_reader):
-    async with create_cog_reader("https://async-cog-reader-test-data.s3.amazonaws.com/webp_cog.tif") as cog:
+    async with create_cog_reader(
+        "https://async-cog-reader-test-data.s3.amazonaws.com/webp_cog.tif"
+    ) as cog:
         preview = await cog.preview(width=512, height=512)
         assert preview.shape == (3, 512, 512)
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "infile", TEST_DATA
-)
+@pytest.mark.parametrize("infile", TEST_DATA)
 async def test_read_not_in_bounds(create_cog_reader, infile):
-    tile = mercantile.Tile(x=0,y=0,z=25)
+    tile = mercantile.Tile(x=0, y=0, z=25)
     bounds = mercantile.xy_bounds(tile)
 
     async with create_cog_reader(infile) as cog:
         if cog.epsg != 3857:
-            bounds = transform_bounds(
-                "EPSG:3857",
-                f"EPSG:{cog.epsg}",
-                *bounds
-            )
+            bounds = transform_bounds("EPSG:3857", f"EPSG:{cog.epsg}", *bounds)
         with pytest.raises(TileNotFoundError):
-            await cog.read(bounds=bounds, shape=(256,256))
+            await cog.read(bounds=bounds, shape=(256, 256))
 
 
 @pytest.mark.asyncio
@@ -432,14 +458,14 @@ async def test_cog_get_overview_level(create_cog_reader, width, height):
             expected_ovr = 0 if expected_ovr == -1 else expected_ovr
             assert ovr == expected_ovr
 
+
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "infile", TEST_DATA
-)
+@pytest.mark.parametrize("infile", TEST_DATA)
 async def test_cog_tile_matrix_set(infile, create_cog_reader):
     async with create_cog_reader(infile) as cog:
         tile_matrix_set = cog.create_tile_matrix_set()
         TileMatrixSet(**tile_matrix_set)
+
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("infile", [TEST_DATA[0]])
@@ -450,29 +476,30 @@ async def test_cog_metadata_iter(infile, create_cog_reader):
             for tag in ifd:
                 assert isinstance(tag, Tag)
 
+
 @pytest.mark.asyncio
 async def test_block_cache_enabled(create_cog_reader, monkeypatch):
     # Cache is disabled for tests
     monkeypatch.setattr(config, "ENABLE_CACHE", True)
     infile = "https://async-cog-reader-test-data.s3.amazonaws.com/lzw_cog.tif"
     async with create_cog_reader(infile) as cog:
-        await cog.get_tile(0,0,0)
+        await cog.get_tile(0, 0, 0)
 
     async with create_cog_reader(infile) as cog:
-        await cog.get_tile(0,0,0)
+        await cog.get_tile(0, 0, 0)
         # Confirm all requests are cached
-        assert cog.requests['count'] == 0
+        assert cog.requests["count"] == 0
 
 
 @pytest.mark.asyncio
 async def test_block_cache_disabled(create_cog_reader):
     infile = "https://async-cog-reader-test-data.s3.amazonaws.com/lzw_cog.tif"
     async with create_cog_reader(infile) as cog:
-        await cog.get_tile(0,0,0)
-        request_count = cog.requests['count']
+        await cog.get_tile(0, 0, 0)
+        request_count = cog.requests["count"]
 
-        await cog.get_tile(0,0,0)
-        assert cog.requests['count'] == request_count + 1
+        await cog.get_tile(0, 0, 0)
+        assert cog.requests["count"] == request_count + 1
 
 
 @pytest.mark.asyncio
@@ -481,8 +508,11 @@ async def test_cog_request_metadata(create_cog_reader, infile):
     async with create_cog_reader(infile) as cog:
         request_metadata = cog.requests
 
-    assert len(request_metadata['ranges']) == request_metadata['count']
-    assert sum([end-start+1 for (start,end) in request_metadata['ranges']]) == request_metadata['byte_count']
+    assert len(request_metadata["ranges"]) == request_metadata["count"]
+    assert (
+        sum([end - start + 1 for (start, end) in request_metadata["ranges"]])
+        == request_metadata["byte_count"]
+    )
 
 
 @pytest.mark.asyncio
@@ -502,15 +532,20 @@ async def test_cog_tiler_tile(create_cog_reader):
         with rasterio.open(infile) as ds:
             _, zoom = get_zooms(ds)
 
-
-        centroid = Polygon.from_bounds(*transform_bounds(cog.epsg, "EPSG:4326", *cog.bounds)).centroid
+        centroid = Polygon.from_bounds(
+            *transform_bounds(cog.epsg, "EPSG:4326", *cog.bounds)
+        ).centroid
         tile = mercantile.tile(centroid.x, centroid.y, zoom)
         # tile_native_bounds = transform_bounds("EPSG:4326", cog.epsg, *mercantile.bounds(tile))
 
-        arr = await tiler.tile(tile.x, tile.y, tile.z, tile_size=256, resample_method=Image.BILINEAR)
+        arr = await tiler.tile(
+            tile.x, tile.y, tile.z, tile_size=256, resample_method=Image.BILINEAR
+        )
 
         with cogeo_reader(infile) as ds:
-            rio_tile_arr, rio_tile_mask = ds.tile(tile.x, tile.y, tile.z, tilesize=256, resampling_method="bilinear")
+            rio_tile_arr, rio_tile_mask = ds.tile(
+                tile.x, tile.y, tile.z, tilesize=256, resampling_method="bilinear"
+            )
 
         if cog.is_masked:
             tile_arr = np.ma.getdata(arr)
@@ -523,7 +558,9 @@ async def test_cog_tiler_tile(create_cog_reader):
             rio_mask_counts = np.unique(rio_tile_mask, return_counts=True)
             tile_mask_counts = np.unique(tile_mask, return_counts=True)
             assert len(rio_mask_counts[0]) == len(tile_mask_counts[0])
-            assert rio_mask_counts[1][0] * cog.profile['count'] == tile_mask_counts[1][0]
+            assert (
+                rio_mask_counts[1][0] * cog.profile["count"] == tile_mask_counts[1][0]
+            )
 
         else:
             assert pytest.approx(arr - rio_tile_arr, 1) == np.zeros(arr.shape)
@@ -534,14 +571,20 @@ async def test_cog_tiler_point(create_cog_reader):
     infile = "https://async-cog-reader-test-data.s3.amazonaws.com/webp_cog.tif"
     async with create_cog_reader(infile) as cog:
         tiler = COGTiler(cog)
-        centroid = Polygon.from_bounds(*transform_bounds(cog.epsg, "EPSG:4326", *cog.bounds)).centroid
-        val = await tiler.point(coords=[centroid.x, centroid.y], coords_crs=CRS.from_epsg(4326))
+        centroid = Polygon.from_bounds(
+            *transform_bounds(cog.epsg, "EPSG:4326", *cog.bounds)
+        ).centroid
+        val = await tiler.point(
+            coords=[centroid.x, centroid.y], coords_crs=CRS.from_epsg(4326)
+        )
         assert list(val) == [50, 69, 74]
 
 
 @pytest.mark.asyncio
 async def test_cog_tiler_part(create_cog_reader):
-    infile_nodata = "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_nodata.tif"
+    infile_nodata = (
+        "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_nodata.tif"
+    )
     async with create_cog_reader(infile_nodata) as cog:
         tiler = COGTiler(cog)
         arr = await tiler.part(
@@ -553,14 +596,16 @@ async def test_cog_tiler_part(create_cog_reader):
 
 @pytest.mark.asyncio
 async def test_cog_tiler_part_dimensions(create_cog_reader):
-    infile_nodata = "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_nodata.tif"
+    infile_nodata = (
+        "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_nodata.tif"
+    )
     async with create_cog_reader(infile_nodata) as cog:
         tiler = COGTiler(cog)
         arr = await tiler.part(
             bounds=(-10526706.9, 4445561.5, -10526084.1, 4446144.0),
             bounds_crs=CRS.from_epsg(cog.epsg),
             width=500,
-            height=500
+            height=500,
         )
         assert arr.shape == (3, 500, 500)
 
@@ -602,18 +647,19 @@ async def test_cog_tiler_info(create_cog_reader):
         profile = cog.profile
 
         assert info.max_zoom > info.min_zoom
-        assert info.dtype == profile['dtype']
-        assert info.color_interp == profile['photometric']
+        assert info.dtype == profile["dtype"]
+        assert info.color_interp == profile["photometric"]
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "infile", [
+    "infile",
+    [
         "/local/file/does/not/exist",
-        "https://cogsarecool.com/cog.tif", # Invalid host
-        "https://async-cog-reader-test-data.s3.amazonaws.com/file-does-not-exist.tif", # valid host invalid path
-        "s3://nobucket/badkey.tif"
-    ]
+        "https://cogsarecool.com/cog.tif",  # Invalid host
+        "https://async-cog-reader-test-data.s3.amazonaws.com/file-does-not-exist.tif",  # valid host invalid path
+        "s3://nobucket/badkey.tif",
+    ],
 )
 async def test_file_not_found(create_cog_reader, infile):
     with pytest.raises(FileNotFoundError):
@@ -624,7 +670,10 @@ async def test_file_not_found(create_cog_reader, infile):
 @pytest.mark.asyncio
 async def test_inject_session():
     async with aiohttp.ClientSession() as session:
-        async with COGReader("https://async-cog-reader-test-data.s3.amazonaws.com/webp_cog.tif", kwargs={"session": session}):
+        async with COGReader(
+            "https://async-cog-reader-test-data.s3.amazonaws.com/webp_cog.tif",
+            kwargs={"session": session},
+        ):
             pass
         # Confirm session is still open
         assert not session.closed
