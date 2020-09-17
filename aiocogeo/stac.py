@@ -1,10 +1,11 @@
 import asyncio
 from dataclasses import dataclass
-from typing import List
+from typing import List, Tuple
 from urllib.parse import urlsplit
 
 import aiohttp
 import numpy as np
+from PIL import Image
 
 from .cog import COGReader, CompositeReader
 
@@ -38,8 +39,18 @@ class STACReader:
         for reader in self.reader.readers:
             await reader._file_reader._close()
 
-    async def get_tile(self, x: int, y: int, z: int) -> np.ndarray:
+    async def get_tile(self, x: int, y: int, z: int) -> List[np.ndarray]:
         """Fetch a tile from all readers"""
         return await self.reader.apply(
             func=lambda r: r.get_tile(x, y, z),
+        )
+
+    async def read(
+        self,
+        bounds: Tuple[float, float, float, float],
+        shape: Tuple[int, int],
+        resample_method: int = Image.NEAREST,
+    ):
+        return await self.reader.apply(
+            func=lambda r: r.read(bounds, shape, resample_method)
         )

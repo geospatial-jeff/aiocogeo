@@ -330,6 +330,6 @@ class COGReader(PartialReadInterface):
 class CompositeReader:
     readers: List[COGReader]
 
-    async def apply(self, func: Callable):
+    async def apply(self, func: Callable) -> List[Any]:
         futs = [func(reader) for reader in self.readers]
         return await asyncio.gather(*futs)
