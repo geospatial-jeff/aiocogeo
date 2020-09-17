@@ -2,7 +2,7 @@ import asyncio
 from dataclasses import dataclass, field
 import logging
 import math
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from urllib.parse import urljoin
 import uuid
 
@@ -323,3 +323,13 @@ class COGReader(PartialReadInterface):
             "tileMatrix": list(reversed(matrices))
         }
         return tms
+
+
+
+@dataclass
+class CompositeReader:
+    readers: List[COGReader]
+
+    async def apply(self, func: Callable):
+        futs = [func(reader) for reader in self.readers]
+        return await asyncio.gather(*futs)
