@@ -223,6 +223,7 @@ class COGTiler(TilerMixin):
 
 @dataclass
 class CompositeTiler(TilerMixin):
+    # TODO: Add reducers
     readers: List[COGTiler]
 
     async def apply(self, func: Callable) -> List[Any]:
