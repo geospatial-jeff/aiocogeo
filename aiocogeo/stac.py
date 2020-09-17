@@ -33,9 +33,14 @@ class STACReader(CompositeReader):
         aliases = []
         for asset in item["assets"]:
             if item["assets"][asset]["type"] in self.include_types:
-                reader = COGReader(item["assets"][asset]["href"]).__aenter__()
+                reader = COGReader(item["assets"][asset]["href"])
+                reader.alias = asset
+                reader = reader.__aenter__()
                 reader_futs.append(reader)
                 aliases.append(asset)
+        self.readers = await asyncio.gather(*reader_futs)
+        self.aliases = aliases
+        self.__post_init__()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):

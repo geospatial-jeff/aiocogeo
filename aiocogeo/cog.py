@@ -362,6 +362,8 @@ class COGReader(ReaderMixin, PartialReadInterface):
 class CompositeReader(ReaderMixin):
     readers: Optional[List[COGReader]] = field(default_factory=list)
     aliases: Optional[List[str]] = None
+    asset_filter: Callable = lambda a: a
+    default_reducer: Callable = lambda r: r
 
     def __post_init__(self):
         if self.aliases:
@@ -369,7 +371,7 @@ class CompositeReader(ReaderMixin):
                 setattr(self, alias, self.readers[idx])
 
     async def apply(self, func: Callable) -> List[Any]:
-        futs = [func(reader) for reader in self.readers]
+        futs = [func(reader) for reader in filter(self.asset_filter, self.readers)]
         return await asyncio.gather(*futs)
 
     async def get_tile(self, x: int, y: int, z: int) -> List[np.ndarray]:
@@ -388,10 +390,12 @@ class CompositeReader(ReaderMixin):
             func=lambda r: r.read(bounds, shape, resample_method)
         )
 
-    async def point(self, x: Union[float, int], y: Union[float, int]) -> List[Union[np.ndarray, np.ma.masked_array]]:
-        return await self.apply(
+    async def point(self, x: Union[float, int], y: Union[float, int], reducer: Optional[Callable] = None) -> List[Union[np.ndarray, np.ma.masked_array]]:
+        points = await self.apply(
             func=lambda r: r.point(x, y)
         )
+        reducer = reducer or self.default_reducer
+        return reducer(points)
 
     async def preview(
         self,
