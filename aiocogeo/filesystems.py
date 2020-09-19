@@ -1,6 +1,7 @@
 import abc
 import asyncio
 from dataclasses import dataclass, field
+import json
 import logging
 import time
 from typing import Any, Callable, Dict, Union
@@ -87,6 +88,10 @@ class Filesystem(abc.ABC):
         return await self._range_request(start, offset)
 
     @abc.abstractmethod
+    async def request_json(self):
+        ...
+
+    @abc.abstractmethod
     async def _range_request(self, start: int, offset: int) -> bytes:
         """Perform a range request"""
         ...
@@ -149,6 +154,17 @@ class HttpFilesystem(Filesystem):
             raise FileNotFoundError(f"File not found: {self.filepath}") from e
         return data
 
+    async def request_json(self) -> Dict:
+        try:
+            async with self.session.get(self.filepath) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+        except (aiohttp.ClientError, aiohttp.ClientResponseError) as e:
+            await self._close()
+            raise FileNotFoundError(f"File not found: {self.filepath}") from e
+        return data
+
+
     async def _close(self) -> None:
         if 'session' not in self.kwargs:
             await self.session.close()
@@ -200,6 +216,9 @@ class LocalFilesystem(Filesystem):
         logger.debug(f" FINISHED REQUEST in {elapsed} seconds: <STATUS 206> ({start}-{start+offset})")
         return data
 
+    async def request_json(self):
+        return json.load(self.file)
+
     async def _close(self) -> None:
         await self.file.close()
 
@@ -230,6 +249,18 @@ class S3Filesystem(Filesystem):
         self._total_requests += 1
         self._requested_ranges.append(tuple([int(v) for v in content_range.split(' ')[-1].split('/')[0].split('-')]))
         data = await req['Body'].read()
+        return data
+
+    async def request_json(self):
+        kwargs = {}
+        if config.AWS_REQUEST_PAYER:
+            kwargs['RequestPayer'] = config.AWS_REQUEST_PAYER
+        try:
+            req = await self.object.get()
+            data = json.loads(await req['Body'].read().decode('utf-8'))
+        except botocore.exceptions.ClientError as e:
+            await self._close()
+            raise FileNotFoundError(f"File not found: {self.filepath}") from e
         return data
 
     async def _close(self) -> None:
