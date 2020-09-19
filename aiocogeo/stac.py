@@ -1,12 +1,10 @@
 import asyncio
 from dataclasses import dataclass, field
-from typing import List, Optional, Set, Tuple, Union
+from typing import Optional, Set
 from urllib.parse import urlsplit
 
 import aiohttp
-import numpy as np
-from PIL import Image
-from stac_pydantic.shared import MimeTypes
+from stac_pydantic.shared import Asset, MimeTypes
 
 from .cog import COGReader, CompositeReader
 
@@ -34,7 +32,7 @@ class STACReader(CompositeReader):
         for asset in item["assets"]:
             if item["assets"][asset]["type"] in self.include_types:
                 reader = COGReader(item["assets"][asset]["href"])
-                reader.alias = asset
+                reader.asset = Asset(name=asset, **item["assets"][asset])
                 reader = reader.__aenter__()
                 reader_futs.append(reader)
                 aliases.append(asset)
