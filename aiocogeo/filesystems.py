@@ -189,10 +189,11 @@ class HttpFilesystem(Filesystem):
     async def _on_request_end(self, session, trace_config_ctx, params):
         if params.response.status < 400:
             elapsed = round(asyncio.get_event_loop().time() - trace_config_ctx.start, 3)
-            content_range = params.response.headers['Content-Range']
+            content_range = params.response.headers.get('Content-Range')
             self._total_bytes_requested += int(params.response.headers["Content-Length"])
             self._total_requests += 1
-            self._requested_ranges.append(tuple([int(v) for v in content_range.split(' ')[-1].split('/')[0].split('-')]))
+            if content_range:
+                self._requested_ranges.append(tuple([int(v) for v in content_range.split(' ')[-1].split('/')[0].split('-')]))
             if config.VERBOSE_LOGS:
                 debug_statement = [f"\n < HTTP/{session.version.major}.{session.version.minor}"]
                 debug_statement += [f"\n < {k}: {v}" for (k, v) in params.response.headers.items()]
