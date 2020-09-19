@@ -357,41 +357,49 @@ class COGReader(ReaderMixin, PartialReadInterface):
         return tms
 
 
+FilterType = Callable[[Any], Any]
+MapType = Callable[[COGReader], Any]
+ReduceType = Callable[[List[Union[np.ndarray, np.ma.masked_array]]], Any]
 
 @dataclass
 class CompositeReader(ReaderMixin):
     readers: Optional[List[COGReader]] = field(default_factory=list)
     aliases: Optional[List[str]] = None
-    asset_filter: Callable = lambda a: a
-    default_reducer: Callable = lambda r: r
+    filter: FilterType = lambda a: a
+    default_reducer: ReduceType = lambda r: r
 
     def __post_init__(self):
         if self.aliases:
             for idx, alias in enumerate(self.aliases):
                 setattr(self, alias, self.readers[idx])
 
-    async def apply(self, func: Callable) -> List[Any]:
-        futs = [func(reader) for reader in filter(self.asset_filter, self.readers)]
+    async def map(self, func: MapType) -> List[Any]:
+        futs = [func(reader) for reader in filter(self.filter, self.readers)]
         return await asyncio.gather(*futs)
 
-    async def get_tile(self, x: int, y: int, z: int) -> List[np.ndarray]:
+    async def get_tile(self, x: int, y: int, z: int, reducer: Optional[ReduceType] = None) -> List[np.ndarray]:
         """Fetch a tile from all readers"""
-        return await self.apply(
+        tiles = await self.map(
             func=lambda r: r.get_tile(x, y, z),
         )
+        reducer = reducer or self.default_reducer
+        return reducer(tiles)
 
     async def read(
         self,
         bounds: Tuple[float, float, float, float],
         shape: Tuple[int, int],
         resample_method: int = Image.NEAREST,
+        reducer: Optional[ReduceType] = None
     ):
-        return await self.apply(
+        reads = await self.map(
             func=lambda r: r.read(bounds, shape, resample_method)
         )
+        reducer = reducer or self.default_reducer
+        return reducer(reads)
 
-    async def point(self, x: Union[float, int], y: Union[float, int], reducer: Optional[Callable] = None) -> List[Union[np.ndarray, np.ma.masked_array]]:
-        points = await self.apply(
+    async def point(self, x: Union[float, int], y: Union[float, int], reducer: Optional[ReduceType] = None) -> List[Union[np.ndarray, np.ma.masked_array]]:
+        points = await self.map(
             func=lambda r: r.point(x, y)
         )
         reducer = reducer or self.default_reducer
@@ -402,8 +410,10 @@ class CompositeReader(ReaderMixin):
         max_size: int = 1024,
         height: Optional[int] = None,
         width: Optional[int] = None,
-        resample_method: int = Image.NEAREST
+        resample_method: int = Image.NEAREST,
+        reducer: Optional[ReduceType] = None,
     ) -> List[Union[np.ndarray, np.ma.masked_array]]:
-        return await self.apply(
+        previews = await self.map(
             func=lambda r: r.preview(max_size, height, width, resample_method)
         )
+        return reducer(previews)
