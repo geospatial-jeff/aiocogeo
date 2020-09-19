@@ -255,12 +255,21 @@ class S3Filesystem(Filesystem):
         kwargs = {}
         if config.AWS_REQUEST_PAYER:
             kwargs['RequestPayer'] = config.AWS_REQUEST_PAYER
+        begin = time.time()
         try:
             req = await self.object.get()
-            data = json.loads(await req['Body'].read().decode('utf-8'))
         except botocore.exceptions.ClientError as e:
             await self._close()
             raise FileNotFoundError(f"File not found: {self.filepath}") from e
+        elapsed = time.time() - begin
+        content_range = req['ResponseMetadata']['HTTPHeaders']['content-range']
+        if not config.VERBOSE_LOGS:
+            status = req['ResponseMetadata']['HTTPStatusCode']
+            logger.debug(f" FINISHED REQUEST in {elapsed} seconds: <STATUS {status}> ({content_range})")
+        self._total_bytes_requested += int(req['ResponseMetadata']['HTTPHeaders']['content-length'])
+        self._total_requests += 1
+        self._requested_ranges.append(tuple([int(v) for v in content_range.split(' ')[-1].split('/')[0].split('-')]))
+        data = json.loads(await req['Body'].read().decode('utf-8'))
         return data
 
     async def _close(self) -> None:
