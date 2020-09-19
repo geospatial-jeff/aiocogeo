@@ -1,5 +1,6 @@
 import asyncio
 from dataclasses import dataclass, field
+import json
 from typing import Optional, Set
 from urllib.parse import urlsplit
 
@@ -7,6 +8,13 @@ import aiohttp
 from stac_pydantic.shared import Asset, MimeTypes
 
 from .cog import COGReader, CompositeReader
+
+
+try:
+    import aioboto3
+    has_s3 = True
+except ModuleNotFoundError:
+    has_s3 = False
 
 
 @dataclass
@@ -22,10 +30,12 @@ class STACReader(CompositeReader):
                 async with session.get(self.filepath) as resp:
                     resp.raise_for_status()
                     item = await resp.json()
-        else:
-            # TODO: support s3
-            pass
-
+        elif splits.scheme == "s3":
+            if not has_s3:
+                raise NotImplementedError("Package must be built with [s3] extra to read from S3")
+            async with aioboto3.resource('s3') as s3:
+                object = await s3.Object(splits.netloc, splits.path[1:])
+                item = json.loads((await object.get())['Body'].read().decode('utf-8'))
         # Create a reader for each asset with a COG mime type
         reader_futs = []
         aliases = []
