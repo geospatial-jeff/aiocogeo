@@ -357,7 +357,7 @@ class COGReader(ReaderMixin, PartialReadInterface):
         return tms
 
 
-FilterType = Callable[[Any], Any]
+FilterType = Callable[[COGReader], Any]
 MapType = Callable[[COGReader], Any]
 ReduceType = Callable[[List[Union[np.ndarray, np.ma.masked_array]]], Any]
 
