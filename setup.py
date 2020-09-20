@@ -39,7 +39,8 @@ setup(
         "imagecodecs",
         "typer",
         "Pillow",
-        "stac-pydantic>=1.3.*"
+        "stac-pydantic>=1.3.*",
+        "geojson-pydantic==0.1.0"
     ],
     test_suite="tests",
     setup_requires=[
