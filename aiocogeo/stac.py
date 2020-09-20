@@ -8,13 +8,6 @@ from .cog import COGReader, CompositeReader
 from .filesystems import Filesystem
 
 
-try:
-    import aioboto3
-    has_s3 = True
-except ModuleNotFoundError:
-    has_s3 = False
-
-
 @dataclass
 class AssetReader(COGReader):
     asset: Asset = Asset
