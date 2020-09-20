@@ -38,7 +38,6 @@ class STACReader(CompositeReader):
 
         reader_futs = map(lambda r: r.__aenter__(), filter(self.filter, reader_futs))
         self.readers = await asyncio.gather(*reader_futs)
-        self.__post_init__()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):

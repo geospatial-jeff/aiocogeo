@@ -26,6 +26,12 @@ logger.setLevel(config.LOG_LEVEL)
 @dataclass
 class ReaderMixin(abc.ABC):
 
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        ...
+
     @abc.abstractmethod
     async def get_tile(self, x: int, y: int, z: int) -> Union[np.ndarray, List[np.ndarray]]:
         ...
@@ -364,14 +370,17 @@ ReduceType = Callable[[List[Union[np.ndarray, np.ma.masked_array]]], Any]
 @dataclass
 class CompositeReader(ReaderMixin):
     readers: Optional[List[COGReader]] = field(default_factory=list)
-    aliases: Optional[List[str]] = None
     filter: FilterType = lambda a: a
     default_reducer: ReduceType = lambda r: r
 
-    def __post_init__(self):
-        if self.aliases:
-            for idx, alias in enumerate(self.aliases):
-                setattr(self, alias, self.readers[idx])
+    def __iter__(self):
+        return iter(self.readers)
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass
 
     async def map(self, func: MapType) -> List[Any]:
         futs = [func(reader) for reader in filter(self.filter, self.readers)]
@@ -416,4 +425,5 @@ class CompositeReader(ReaderMixin):
         previews = await self.map(
             func=lambda r: r.preview(max_size, height, width, resample_method)
         )
+        reducer = reducer or self.default_reducer
         return reducer(previews)
