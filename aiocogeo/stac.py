@@ -28,18 +28,16 @@ class STACReader(CompositeReader):
 
         # Create a reader for each asset with a COG mime type
         reader_futs = []
-        aliases = []
         for asset in item["assets"]:
             if item["assets"][asset]["type"] in self.include_types:
                 reader = AssetReader(
                     filepath=item["assets"][asset]["href"],
                     asset=Asset(name=asset, **item['assets'][asset])
                 )
-                reader = reader.__aenter__()
                 reader_futs.append(reader)
-                aliases.append(asset)
+
+        reader_futs = map(lambda r: r.__aenter__(), filter(self.filter, reader_futs))
         self.readers = await asyncio.gather(*reader_futs)
-        self.aliases = aliases
         self.__post_init__()
         return self
 
