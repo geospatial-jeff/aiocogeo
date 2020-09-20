@@ -16,6 +16,11 @@ except ModuleNotFoundError:
 
 
 @dataclass
+class AssetReader(COGReader):
+    asset: Asset = Asset
+
+
+@dataclass
 class STACReader(CompositeReader):
     filepath: Optional[str] = None
     include_types: Set[MimeTypes] = field(default_factory=lambda: {MimeTypes.cog})
@@ -33,8 +38,10 @@ class STACReader(CompositeReader):
         aliases = []
         for asset in item["assets"]:
             if item["assets"][asset]["type"] in self.include_types:
-                reader = COGReader(item["assets"][asset]["href"])
-                reader.asset = Asset(name=asset, **item["assets"][asset])
+                reader = AssetReader(
+                    filepath=item["assets"][asset]["href"],
+                    asset=Asset(name=asset, **item['assets'][asset])
+                )
                 reader = reader.__aenter__()
                 reader_futs.append(reader)
                 aliases.append(asset)
