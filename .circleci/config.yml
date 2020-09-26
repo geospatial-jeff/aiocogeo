@@ -29,7 +29,7 @@ jobs:
       # https://nose.readthedocs.io
       - run:
           name: run tests
-          command: python setup.py pytest
+          command: pip install -U setuptools && python setup.py pytest
 
       - codecov/upload:
           file: "coverage.xml"
