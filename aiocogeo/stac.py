@@ -6,6 +6,7 @@ from stac_pydantic.shared import Asset, MimeTypes
 
 from .cog import COGReader, CompositeReader
 from .filesystems import Filesystem
+from .errors import MissingAssets
 
 
 @dataclass
@@ -35,6 +36,9 @@ class STACReader(CompositeReader):
                     asset=Asset(name=asset, **item['assets'][asset])
                 )
                 reader_futs.append(reader)
+
+        if not reader_futs:
+            raise MissingAssets(f"No assets found of type {self.include_types}")
 
         reader_futs = map(lambda r: r.__aenter__(), filter(self.filter, reader_futs))
         self.readers = await asyncio.gather(*reader_futs)
