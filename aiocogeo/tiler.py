@@ -1,11 +1,13 @@
+import abc
+import asyncio
 from dataclasses import dataclass
 import math
-from typing import List, Tuple
+from typing import Any, Callable, List, Tuple, Type
 
 import numpy as np
 from PIL import Image
 
-from .cog import COGReader
+from .cog import COGReader, ReaderMixin
 
 try:
     import morecantile
@@ -36,8 +38,56 @@ class COGInfo:
 
 
 @dataclass
-class COGTiler:
-    cog: COGReader
+class TilerMixin(abc.ABC):
+
+    @abc.abstractmethod
+    async def tile(
+        self,
+        x: int,
+        y: int,
+        z: int,
+        tile_size: int = 256,
+        tms: TileMatrixSet = DEFAULT_TMS,
+        resample_method: int = Image.NEAREST,
+    ) -> np.ndarray:
+        ...
+
+    @abc.abstractmethod
+    async def point(
+        self,
+        coords: Tuple[float, float],
+        coords_crs: CRS = WGS84,
+    ) -> np.ndarray:
+        ...
+
+    @abc.abstractmethod
+    async def part(
+        self,
+        bounds: Tuple[float, float, float, float],
+        bounds_crs: CRS = WGS84,
+        width: int = None,
+        height: int = None
+    ) -> np.ndarray:
+        ...
+
+    @abc.abstractmethod
+    async def preview(
+        self,
+        width: int = None,
+        height: int = None,
+        max_size: int = 1024,
+        resample_method: int = Image.NEAREST,
+    ):
+        ...
+
+    @abc.abstractmethod
+    async def info(self) -> COGInfo:
+        ...
+
+
+@dataclass
+class COGTiler(TilerMixin):
+    cog: Type[ReaderMixin]
 
     def __post_init__(self):
         self.profile = self.cog.profile
@@ -168,4 +218,54 @@ class COGTiler:
             bounds=list(wgs84_bounds),
             dtype=self.profile["dtype"],
             color_interp=self.profile["photometric"],
+        )
+
+
+@dataclass
+class CompositeTiler(TilerMixin):
+    # TODO: Add reducers
+    readers: List[COGTiler]
+
+    async def apply(self, func: Callable) -> List[Any]:
+        futs = [func(reader) for reader in self.readers]
+        return await asyncio.gather(*futs)
+
+    async def tile(
+        self,
+        x: int,
+        y: int,
+        z: int,
+        tile_size: int = 256,
+        tms: TileMatrixSet = DEFAULT_TMS,
+        resample_method: int = Image.NEAREST,
+    ) -> np.ndarray:
+        return await self.apply(
+            func=lambda r: r.tile(x, y, z, tile_size, tms, resample_method)
+        )
+
+    async def part(
+        self,
+        bounds: Tuple[float, float, float, float],
+        bounds_crs: CRS = WGS84,
+        width: int = None,
+        height: int = None
+    ) -> np.ndarray:
+        return await self.apply(
+            func=lambda r: r.part(bounds, bounds_crs, width, height)
+        )
+
+    async def preview(
+        self,
+        width: int = None,
+        height: int = None,
+        max_size: int = 1024,
+        resample_method: int = Image.NEAREST,
+    ):
+        return await self.apply(
+            func=lambda r: r.preview(width, height, max_size, resample_method)
+        )
+
+    async def info(self) -> COGInfo:
+        return await self.apply(
+            func=lambda f: r.info()
         )

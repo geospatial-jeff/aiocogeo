@@ -1,6 +1,7 @@
 import abc
 import asyncio
 from dataclasses import dataclass, field
+import json
 import logging
 import time
 from typing import Any, Callable, Dict, Union
@@ -87,6 +88,10 @@ class Filesystem(abc.ABC):
         return await self._range_request(start, offset)
 
     @abc.abstractmethod
+    async def request_json(self):
+        ...
+
+    @abc.abstractmethod
     async def _range_request(self, start: int, offset: int) -> bytes:
         """Perform a range request"""
         ...
@@ -149,6 +154,17 @@ class HttpFilesystem(Filesystem):
             raise FileNotFoundError(f"File not found: {self.filepath}") from e
         return data
 
+    async def request_json(self) -> Dict:
+        try:
+            async with self.session.get(self.filepath) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+        except (aiohttp.ClientError, aiohttp.ClientResponseError) as e:
+            await self._close()
+            raise FileNotFoundError(f"File not found: {self.filepath}") from e
+        return data
+
+
     async def _close(self) -> None:
         if 'session' not in self.kwargs:
             await self.session.close()
@@ -173,10 +189,11 @@ class HttpFilesystem(Filesystem):
     async def _on_request_end(self, session, trace_config_ctx, params):
         if params.response.status < 400:
             elapsed = round(asyncio.get_event_loop().time() - trace_config_ctx.start, 3)
-            content_range = params.response.headers['Content-Range']
+            content_range = params.response.headers.get('Content-Range')
             self._total_bytes_requested += int(params.response.headers["Content-Length"])
             self._total_requests += 1
-            self._requested_ranges.append(tuple([int(v) for v in content_range.split(' ')[-1].split('/')[0].split('-')]))
+            if content_range:
+                self._requested_ranges.append(tuple([int(v) for v in content_range.split(' ')[-1].split('/')[0].split('-')]))
             if config.VERBOSE_LOGS:
                 debug_statement = [f"\n < HTTP/{session.version.major}.{session.version.minor}"]
                 debug_statement += [f"\n < {k}: {v}" for (k, v) in params.response.headers.items()]
@@ -199,6 +216,9 @@ class LocalFilesystem(Filesystem):
         self._requested_ranges.append((start, start+offset))
         logger.debug(f" FINISHED REQUEST in {elapsed} seconds: <STATUS 206> ({start}-{start+offset})")
         return data
+
+    async def request_json(self):
+        return json.load(self.file)
 
     async def _close(self) -> None:
         await self.file.close()
@@ -230,6 +250,27 @@ class S3Filesystem(Filesystem):
         self._total_requests += 1
         self._requested_ranges.append(tuple([int(v) for v in content_range.split(' ')[-1].split('/')[0].split('-')]))
         data = await req['Body'].read()
+        return data
+
+    async def request_json(self):
+        kwargs = {}
+        if config.AWS_REQUEST_PAYER:
+            kwargs['RequestPayer'] = config.AWS_REQUEST_PAYER
+        begin = time.time()
+        try:
+            req = await self.object.get()
+        except botocore.exceptions.ClientError as e:
+            await self._close()
+            raise FileNotFoundError(f"File not found: {self.filepath}") from e
+        elapsed = time.time() - begin
+        content_range = req['ResponseMetadata']['HTTPHeaders']['content-range']
+        if not config.VERBOSE_LOGS:
+            status = req['ResponseMetadata']['HTTPStatusCode']
+            logger.debug(f" FINISHED REQUEST in {elapsed} seconds: <STATUS {status}> ({content_range})")
+        self._total_bytes_requested += int(req['ResponseMetadata']['HTTPHeaders']['content-length'])
+        self._total_requests += 1
+        self._requested_ranges.append(tuple([int(v) for v in content_range.split(' ')[-1].split('/')[0].split('-')]))
+        data = json.loads(await req['Body'].read().decode('utf-8'))
         return data
 
     async def _close(self) -> None:

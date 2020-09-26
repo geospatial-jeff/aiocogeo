@@ -1,8 +1,9 @@
+import abc
 import asyncio
 from dataclasses import dataclass, field
 import logging
 import math
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from urllib.parse import urljoin
 import uuid
 
@@ -23,7 +24,44 @@ logger.setLevel(config.LOG_LEVEL)
 
 
 @dataclass
-class COGReader(PartialReadInterface):
+class ReaderMixin(abc.ABC):
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        ...
+
+    @abc.abstractmethod
+    async def get_tile(self, x: int, y: int, z: int) -> Union[np.ndarray, List[np.ndarray]]:
+        ...
+
+    @abc.abstractmethod
+    async def read(
+        self,
+        bounds: Tuple[float, float, float, float],
+        shape: Tuple[int, int],
+        resample_method: int = Image.NEAREST,
+    ) -> Union[Union[np.ndarray, np.ma.masked_array], List[Union[np.ndarray, np.ma.masked_array]]]:
+        ...
+
+    @abc.abstractmethod
+    async def point(self, x: Union[float, int], y: Union[float, int]) -> Union[Union[np.ndarray, np.ma.masked_array], List[Union[np.ndarray, np.ma.masked_array]]]:
+        ...
+
+    @abc.abstractmethod
+    async def preview(
+        self,
+        max_size: int = 1024,
+        height: Optional[int] = None,
+        width: Optional[int] = None,
+        resample_method: int = Image.NEAREST
+    ) -> Union[Union[np.ndarray, np.ma.masked_array], List[Union[np.ndarray, np.ma.masked_array]]]:
+        ...
+
+
+@dataclass
+class COGReader(ReaderMixin, PartialReadInterface):
     filepath: str
     ifds: Optional[List[ImageIFD]] = field(default_factory=lambda: [])
     mask_ifds: Optional[List[MaskIFD]] = field(default_factory=lambda: [])
@@ -323,3 +361,69 @@ class COGReader(PartialReadInterface):
             "tileMatrix": list(reversed(matrices))
         }
         return tms
+
+
+FilterType = Callable[[COGReader], Any]
+MapType = Callable[[COGReader], Any]
+ReduceType = Callable[[List[Union[np.ndarray, np.ma.masked_array]]], Any]
+
+@dataclass
+class CompositeReader(ReaderMixin):
+    readers: Optional[List[COGReader]] = field(default_factory=list)
+    filter: FilterType = lambda a: a
+    default_reducer: ReduceType = lambda r: r
+
+    def __iter__(self):
+        return iter(self.readers)
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+    async def map(self, func: MapType) -> List[Any]:
+        futs = [func(reader) for reader in filter(self.filter, self.readers)]
+        return await asyncio.gather(*futs)
+
+    async def get_tile(self, x: int, y: int, z: int, reducer: Optional[ReduceType] = None) -> List[np.ndarray]:
+        """Fetch a tile from all readers"""
+        tiles = await self.map(
+            func=lambda r: r.get_tile(x, y, z),
+        )
+        reducer = reducer or self.default_reducer
+        return reducer(tiles)
+
+    async def read(
+        self,
+        bounds: Tuple[float, float, float, float],
+        shape: Tuple[int, int],
+        resample_method: int = Image.NEAREST,
+        reducer: Optional[ReduceType] = None
+    ):
+        reads = await self.map(
+            func=lambda r: r.read(bounds, shape, resample_method)
+        )
+        reducer = reducer or self.default_reducer
+        return reducer(reads)
+
+    async def point(self, x: Union[float, int], y: Union[float, int], reducer: Optional[ReduceType] = None) -> List[Union[np.ndarray, np.ma.masked_array]]:
+        points = await self.map(
+            func=lambda r: r.point(x, y)
+        )
+        reducer = reducer or self.default_reducer
+        return reducer(points)
+
+    async def preview(
+        self,
+        max_size: int = 1024,
+        height: Optional[int] = None,
+        width: Optional[int] = None,
+        resample_method: int = Image.NEAREST,
+        reducer: Optional[ReduceType] = None,
+    ) -> List[Union[np.ndarray, np.ma.masked_array]]:
+        previews = await self.map(
+            func=lambda r: r.preview(max_size, height, width, resample_method)
+        )
+        reducer = reducer or self.default_reducer
+        return reducer(previews)

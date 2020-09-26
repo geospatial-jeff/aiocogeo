@@ -14,3 +14,8 @@ class InvalidTiffError(CogReadError):
 @dataclass
 class TileNotFoundError(CogReadError):
     ...
+
+
+@dataclass
+class MissingAssets(CogReadError):
+    ...
