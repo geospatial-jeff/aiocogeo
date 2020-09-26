@@ -39,19 +39,3 @@ async def test_stac_reader_reuse_session():
         ) as reader:
             pass
         assert not session.closed
-
-
-"""
-async def main():
-    async with STACReader(
-        filepath="http://stac.arturo.ai/collections/naip/items/m_3311717_nw_11_060_20180723",
-        include_types={MimeTypes.cog}, # Only try to read COG types
-        filter=lambda a: a.asset.name == "analytic_cog" # Filter for the asset with NIR band
-    ) as reader:
-        val = await reader.point(
-            x=412382.1,
-            y=3731494.7,
-            reducer=ndvi
-        )
-        print(val)
-"""
