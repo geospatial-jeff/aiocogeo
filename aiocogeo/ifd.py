@@ -71,6 +71,8 @@ class RequiredTags:
 
 @dataclass
 class OptionalTags:
+    ExtraSamples: Tag = None
+
     # TIFF standard tags
     NewSubfileType: Tag = None
     Predictor: Tag = None
