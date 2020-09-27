@@ -84,6 +84,17 @@ class OptionalTags:
 
 @dataclass
 class ImageIFD(OptionalTags, Compression, RequiredTags, IFD):
+    _is_alpha: bool = False
+
+    @property
+    def is_alpha(self) -> bool:
+        """Return if the ifd is an alpha band"""
+        return self._is_alpha
+
+    @is_alpha.setter
+    def is_alpha(self, value):
+        """is_alpha setter"""
+        self._is_alpha = value
 
     @property
     def compression(self) -> str:
@@ -110,6 +121,11 @@ class ImageIFD(OptionalTags, Compression, RequiredTags, IFD):
     @property
     def nodata(self) -> Optional[int]:
         return int(self.NoData.value[0]) if self.NoData else None
+
+    @property
+    def has_extra_samples(self):
+        return True if self.ExtraSamples else False
+
 
     @property
     def interleave(self) -> str:

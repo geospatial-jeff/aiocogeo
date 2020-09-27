@@ -161,7 +161,6 @@ class COGReader(ReaderMixin, PartialReadInterface):
     def nodata(self) -> Optional[int]:
         return self.ifds[0].nodata
 
-
     async def _read_header(self) -> None:
         """Internal method to read image header and parse into IFDs and Tags"""
         next_ifd_offset = 1
@@ -176,6 +175,12 @@ class COGReader(ReaderMixin, PartialReadInterface):
             else:
                 self.ifds.append(ifd)
 
+        # TODO: Explicitely associate the image with it's mask
+        # Label alpha bands
+        if self.mask_ifds:
+            for (image, mask) in zip(self.ifds, self.mask_ifds):
+                if image.has_extra_samples:
+                    mask.is_alpha = True
 
     def geotransform(self, ovr_level: int = 0) -> affine.Affine:
         """Return the geotransform of the image at a specific overview level (defaults to native resolution)"""
