@@ -1,4 +1,4 @@
-# TODO: Add more compressions
+import enum
 
 WEB_MERCATOR_EPSG = 3857
 
@@ -132,6 +132,7 @@ TIFF_TAGS = {
     323: "TileHeight",
     324: "TileOffsets",
     325: "TileByteCounts",
+    338: "ExtraSamples",
     339: "SampleFormat",
     347: "JPEGTables",
     33550: "ModelPixelScaleTag",
@@ -139,3 +140,10 @@ TIFF_TAGS = {
     34735: "GeoKeyDirectoryTag",
     42113: "NoData"
 }
+
+class MaskFlags(enum.IntEnum):
+    """https://github.com/mapbox/rasterio/blob/master/rasterio/enums.py#L80-L84"""
+    all_valid = 1
+    per_dataset = 2
+    alpha = 4
+    nodata = 8

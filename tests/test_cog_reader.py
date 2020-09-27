@@ -21,6 +21,7 @@ from aiocogeo.ifd import IFD
 from aiocogeo.tag import Tag
 from aiocogeo.tiler import COGTiler
 from aiocogeo.errors import InvalidTiffError, TileNotFoundError
+from aiocogeo.constants import MaskFlags
 
 from .conftest import TEST_DATA
 
@@ -179,7 +180,7 @@ async def test_cog_calculate_image_tiles(infile, create_cog_reader):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("infile", TEST_DATA[:-2])
+@pytest.mark.parametrize("infile", TEST_DATA[:-3])
 async def test_cog_read(infile, create_cog_reader):
     async with create_cog_reader(infile) as cog:
         with rasterio.open(infile) as ds:
@@ -428,6 +429,41 @@ async def test_preview_width_height(create_cog_reader):
         preview = await cog.preview(width=512, height=512)
         assert preview.shape == (3, 512, 512)
 
+
+@pytest.mark.asyncio
+async def test_cog_has_alpha_band(create_cog_reader):
+    async with create_cog_reader("https://async-cog-reader-test-data.s3.amazonaws.com/cog_alpha_band.tif") as cog:
+        assert cog.has_alpha
+
+    async with create_cog_reader(TEST_DATA[0]) as cog:
+        assert not cog.has_alpha
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("infile,expected", zip(TEST_DATA, [
+    [[MaskFlags.all_valid], [MaskFlags.all_valid], [MaskFlags.all_valid]],
+    [[MaskFlags.all_valid], [MaskFlags.all_valid], [MaskFlags.all_valid]],
+    [[MaskFlags.all_valid], [MaskFlags.all_valid], [MaskFlags.all_valid]],
+    [[MaskFlags.all_valid], [MaskFlags.all_valid], [MaskFlags.all_valid]],
+    [[MaskFlags.all_valid], [MaskFlags.all_valid], [MaskFlags.all_valid]],
+    [[MaskFlags.nodata], [MaskFlags.nodata], [MaskFlags.nodata]],
+    [[MaskFlags.nodata], [MaskFlags.nodata], [MaskFlags.nodata]],
+    [[MaskFlags.per_dataset], [MaskFlags.per_dataset], [MaskFlags.per_dataset]],
+    [[MaskFlags.nodata], [MaskFlags.nodata], [MaskFlags.nodata]],
+    [
+        [MaskFlags.per_dataset, MaskFlags.alpha],
+        [MaskFlags.per_dataset, MaskFlags.alpha],
+        [MaskFlags.per_dataset, MaskFlags.alpha],
+        [MaskFlags.all_valid]
+    ],
+    [[MaskFlags.per_dataset]],
+    [[MaskFlags.all_valid], [MaskFlags.all_valid], [MaskFlags.all_valid]],
+
+]))
+async def test_cog_mask_flags(create_cog_reader, infile, expected):
+    async with create_cog_reader(infile) as cog:
+        mask_flags = cog.mask_flags
+    assert expected == mask_flags
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("infile", TEST_DATA)

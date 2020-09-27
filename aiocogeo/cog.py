@@ -12,7 +12,7 @@ from PIL import Image
 import numpy as np
 
 from . import config
-from .constants import PHOTOMETRIC
+from .constants import MaskFlags, PHOTOMETRIC
 from .errors import InvalidTiffError, TileNotFoundError
 from .filesystems import Filesystem
 from .ifd import IFD, ImageIFD, MaskIFD
@@ -158,9 +158,44 @@ class COGReader(ReaderMixin, PartialReadInterface):
         return True if self.mask_ifds else False
 
     @property
+    def mask_flags(self):
+        """
+        https://gdal.org/doxygen/classGDALRasterBand.html#a181a931c6ecbdd8c84c5478e4aa48aaf
+        https://trac.osgeo.org/gdal/wiki/rfc15_nodatabitmask
+        """
+        bands = self.ifds[0].bands
+        flags = set()
+        if self.nodata is not None:
+            flags.add(MaskFlags.nodata)
+        if self.has_alpha:
+            flags.add(MaskFlags.per_dataset)
+            flags.add(MaskFlags.alpha)
+        if self.mask_ifds:
+            flags.add(MaskFlags.per_dataset)
+        if not any([self.nodata is not None, self.has_alpha, self.mask_ifds]):
+            flags.add(MaskFlags.all_valid)
+
+        flags = list(flags)
+        if self.has_alpha:
+            extra_samples = self.ifds[0].ExtraSamples.count or 0
+            band_flags = [flags for _ in range(bands - extra_samples)]
+            for _ in range(extra_samples):
+                band_flags.append([MaskFlags.all_valid])
+            return band_flags
+        return [flags for _ in range(bands)]
+
+    @property
+    def has_alpha(self) -> bool:
+        """Check if the image has an alpha band"""
+        if self.mask_ifds:
+            for ifd in self.mask_ifds:
+                if ifd.is_alpha:
+                    return True
+        return False
+
+    @property
     def nodata(self) -> Optional[int]:
         return self.ifds[0].nodata
-
 
     async def _read_header(self) -> None:
         """Internal method to read image header and parse into IFDs and Tags"""
@@ -176,6 +211,12 @@ class COGReader(ReaderMixin, PartialReadInterface):
             else:
                 self.ifds.append(ifd)
 
+        # TODO: Explicitely associate the image with it's mask
+        # Label alpha bands
+        if self.mask_ifds:
+            for (image, mask) in zip(self.ifds, self.mask_ifds):
+                if image.has_extra_samples:
+                    mask.is_alpha = True
 
     def geotransform(self, ovr_level: int = 0) -> affine.Affine:
         """Return the geotransform of the image at a specific overview level (defaults to native resolution)"""
