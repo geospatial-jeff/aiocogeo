@@ -1,4 +1,4 @@
-# TODO: Add more compressions
+import enum
 
 WEB_MERCATOR_EPSG = 3857
 
@@ -132,6 +132,7 @@ TIFF_TAGS = {
     323: "TileHeight",
     324: "TileOffsets",
     325: "TileByteCounts",
+    338: "ExtraSamples",
     339: "SampleFormat",
     347: "JPEGTables",
     33550: "ModelPixelScaleTag",

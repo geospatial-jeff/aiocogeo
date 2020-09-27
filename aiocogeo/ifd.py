@@ -71,6 +71,7 @@ class OptionalTags:
     NewSubfileType: Tag = None
     Predictor: Tag = None
     JPEGTables: Tag = None
+    ExtraSamples: Tag = None
 
     # GeoTiff
     GeoKeyDirectoryTag: Tag = None
