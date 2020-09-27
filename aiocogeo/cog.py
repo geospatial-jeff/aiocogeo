@@ -158,6 +158,15 @@ class COGReader(ReaderMixin, PartialReadInterface):
         return True if self.mask_ifds else False
 
     @property
+    def has_alpha(self) -> bool:
+        """Check if the image has an alpha band"""
+        if self.mask_ifds:
+            for ifd in self.mask_ifds:
+                if ifd.is_alpha:
+                    return True
+        return False
+
+    @property
     def nodata(self) -> Optional[int]:
         return self.ifds[0].nodata
 
