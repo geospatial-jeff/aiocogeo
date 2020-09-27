@@ -12,7 +12,7 @@ from PIL import Image
 import numpy as np
 
 from . import config
-from .constants import MaskFlags, PHOTOMETRIC
+from .constants import ColorInterp, MaskFlags, PHOTOMETRIC
 from .errors import InvalidTiffError, TileNotFoundError
 from .filesystems import Filesystem
 from .ifd import IFD, ImageIFD, MaskIFD
@@ -114,7 +114,7 @@ class COGReader(ReaderMixin, PartialReadInterface):
             "crs": f"EPSG:{self.epsg}",
             "nodata": ifd.nodata,
             "tiled": True,
-            "photometric": PHOTOMETRIC[ifd.PhotometricInterpretation.value],
+            "photometric": self.photometric,
         }
 
     @property
@@ -183,6 +183,37 @@ class COGReader(ReaderMixin, PartialReadInterface):
                 band_flags.append([MaskFlags.all_valid])
             return band_flags
         return [flags for _ in range(bands)]
+
+    @property
+    def photometric(self):
+        return PHOTOMETRIC[self.ifds[0].PhotometricInterpretation.value]
+
+    @property
+    def color_interp(self):
+        """
+        https://gdal.org/user/raster_data_model.html#raster-band
+        https://trac.osgeo.org/gdal/ticket/4547#comment:1
+        """
+        photometric = self.photometric
+        if photometric == "rgb":
+            interp = [ColorInterp.red, ColorInterp.green, ColorInterp.blue]
+            if self.has_alpha:
+                interp.append(ColorInterp.alpha)
+        elif photometric == "minisblack" or photometric == "miniswhite":
+            interp = [ColorInterp.gray]
+        elif photometric == "palette":
+            interp = [ColorInterp.palette]
+        elif photometric == "cmyk":
+            interp = [ColorInterp.cyan, ColorInterp.magenta, ColorInterp.yellow, ColorInterp.black]
+        elif photometric == "ycbcr":
+            interp = [ColorInterp.red, ColorInterp.green, ColorInterp.blue]
+        elif photometric == "cielab" or photometric == "icclab" or photometric == "itulab":
+            interp = [ColorInterp.lightness, ColorInterp.lightness, ColorInterp.lightness]
+        else:
+            interp = [ColorInterp.undefined for _ in range(self.profile['count'])]
+        return interp
+
+
 
     @property
     def has_alpha(self) -> bool:

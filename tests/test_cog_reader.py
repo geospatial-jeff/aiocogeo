@@ -38,6 +38,7 @@ async def test_cog_metadata(infile, create_cog_reader):
             cog_profile.pop("photometric", None)
             rio_profile.pop("photometric", None)
 
+            assert [member.value for member in ds.colorinterp] == [member.value for member in cog.color_interp]
             assert rio_profile == cog_profile
             assert ds.overviews(1) == cog.overviews
 
