@@ -480,6 +480,16 @@ async def test_read_not_in_bounds(create_cog_reader, infile):
 
 
 @pytest.mark.asyncio
+async def test_cog_palette(create_cog_reader):
+    infile = "https://async-cog-reader-test-data.s3.amazonaws.com/cog_cmap.tif"
+    async with create_cog_reader(infile) as cog:
+        with rasterio.open(infile) as ds:
+            cog_interp = cog.color_interp
+            rio_interp = ds.colorinterp
+            assert cog_interp[0].value == rio_interp[0].value
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "width,height", [(500, 500), (1000, 1000), (5000, 5000), (10000, 10000)]
 )
