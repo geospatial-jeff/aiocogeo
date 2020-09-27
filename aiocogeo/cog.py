@@ -165,14 +165,14 @@ class COGReader(ReaderMixin, PartialReadInterface):
         """
         bands = self.ifds[0].bands
         flags = set()
-        if self.nodata:
+        if self.nodata is not None:
             flags.add(MaskFlags.nodata)
         if self.has_alpha:
             flags.add(MaskFlags.per_dataset)
             flags.add(MaskFlags.alpha)
         if self.mask_ifds:
             flags.add(MaskFlags.per_dataset)
-        if not any([self.nodata, self.has_alpha, self.mask_ifds]):
+        if not any([self.nodata is not None, self.has_alpha, self.mask_ifds]):
             flags.add(MaskFlags.all_valid)
 
         flags = list(flags)

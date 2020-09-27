@@ -24,6 +24,7 @@ TEST_DATA = [
     "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_nodata.tif",
     "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image.tif",
     "https://async-cog-reader-test-data.s3.amazonaws.com/naip_image_masked.tif",
+    "https://async-cog-reader-test-data.s3.amazonaws.com/cog_alpha_band.tif",
     "http://async-cog-reader-test-data.s3.amazonaws.com/packbits_cog.tif",
     "https://async-cog-reader-test-data.s3.amazonaws.com/int16_deflate.tif",
     os.path.join(DATA_DIR, "cog.tif"),
