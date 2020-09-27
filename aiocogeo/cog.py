@@ -164,25 +164,25 @@ class COGReader(ReaderMixin, PartialReadInterface):
         https://trac.osgeo.org/gdal/wiki/rfc15_nodatabitmask
         """
         bands = self.ifds[0].bands
-        flags = []
+        flags = set()
         if self.nodata:
-            flags.append(MaskFlags.nodata)
+            flags.add(MaskFlags.nodata)
         if self.has_alpha:
-            flags.append(MaskFlags.per_dataset)
-            flags.append(MaskFlags.alpha)
+            flags.add(MaskFlags.per_dataset)
+            flags.add(MaskFlags.alpha)
+        if self.mask_ifds:
+            flags.add(MaskFlags.per_dataset)
+        if not any([self.nodata, self.has_alpha, self.mask_ifds]):
+            flags.add(MaskFlags.all_valid)
 
-        if not flags:
-            return [[MaskFlags.all_valid] for _ in range(bands)]
-
+        flags = list(flags)
         if self.has_alpha:
             extra_samples = self.ifds[0].ExtraSamples.count or 0
             band_flags = [flags for _ in range(bands - extra_samples)]
             for _ in range(extra_samples):
                 band_flags.append([MaskFlags.all_valid])
             return band_flags
-
         return [flags for _ in range(bands)]
-
 
     @property
     def has_alpha(self) -> bool:
