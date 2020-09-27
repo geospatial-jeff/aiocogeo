@@ -12,7 +12,7 @@ from PIL import Image
 import numpy as np
 
 from . import config
-from .constants import PHOTOMETRIC
+from .constants import MaskFlags, PHOTOMETRIC
 from .errors import InvalidTiffError, TileNotFoundError
 from .filesystems import Filesystem
 from .ifd import IFD, ImageIFD, MaskIFD
@@ -156,6 +156,33 @@ class COGReader(ReaderMixin, PartialReadInterface):
     def is_masked(self) -> bool:
         """Check if the image has an internal mask"""
         return True if self.mask_ifds else False
+
+    @property
+    def mask_flags(self):
+        """
+        https://gdal.org/doxygen/classGDALRasterBand.html#a181a931c6ecbdd8c84c5478e4aa48aaf
+        https://trac.osgeo.org/gdal/wiki/rfc15_nodatabitmask
+        """
+        bands = self.ifds[0].bands
+        flags = []
+        if self.nodata:
+            flags.append(MaskFlags.nodata)
+        if self.has_alpha:
+            flags.append(MaskFlags.per_dataset)
+            flags.append(MaskFlags.alpha)
+
+        if not flags:
+            return [[MaskFlags.all_valid] for _ in range(bands+1)]
+
+        if self.has_alpha:
+            extra_samples = self.ifds[0].ExtraSamples.count or 0
+            band_flags = [flags for _ in range(bands - extra_samples)]
+            for _ in range(extra_samples):
+                band_flags.append([MaskFlags.all_valid])
+            return band_flags
+
+        return [flags for _ in range(bands)]
+
 
     @property
     def has_alpha(self) -> bool:
