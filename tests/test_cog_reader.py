@@ -180,7 +180,7 @@ async def test_cog_calculate_image_tiles(infile, create_cog_reader):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("infile", TEST_DATA[:-2])
+@pytest.mark.parametrize("infile", TEST_DATA[:-3])
 async def test_cog_read(infile, create_cog_reader):
     async with create_cog_reader(infile) as cog:
         with rasterio.open(infile) as ds:
@@ -440,7 +440,6 @@ async def test_cog_has_alpha_band(create_cog_reader):
 
 
 @pytest.mark.asyncio
-# @pytest.mark.parametrize("infile", TEST_DATA)
 @pytest.mark.parametrize("infile,expected", zip(TEST_DATA, [
     [[MaskFlags.all_valid], [MaskFlags.all_valid], [MaskFlags.all_valid]],
     [[MaskFlags.all_valid], [MaskFlags.all_valid], [MaskFlags.all_valid]],
@@ -450,13 +449,13 @@ async def test_cog_has_alpha_band(create_cog_reader):
     [[MaskFlags.nodata], [MaskFlags.nodata], [MaskFlags.nodata]],
     [[MaskFlags.nodata], [MaskFlags.nodata], [MaskFlags.nodata]],
     [[MaskFlags.per_dataset], [MaskFlags.per_dataset], [MaskFlags.per_dataset]],
+    [[MaskFlags.nodata], [MaskFlags.nodata], [MaskFlags.nodata]],
     [
         [MaskFlags.per_dataset, MaskFlags.alpha],
         [MaskFlags.per_dataset, MaskFlags.alpha],
         [MaskFlags.per_dataset, MaskFlags.alpha],
         [MaskFlags.all_valid]
     ],
-    [[MaskFlags.nodata], [MaskFlags.nodata], [MaskFlags.nodata]],
     [[MaskFlags.per_dataset]],
     [[MaskFlags.all_valid], [MaskFlags.all_valid], [MaskFlags.all_valid]],
 
