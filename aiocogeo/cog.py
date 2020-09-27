@@ -172,7 +172,7 @@ class COGReader(ReaderMixin, PartialReadInterface):
             flags.append(MaskFlags.alpha)
 
         if not flags:
-            return [[MaskFlags.all_valid] for _ in range(bands+1)]
+            return [[MaskFlags.all_valid] for _ in range(bands)]
 
         if self.has_alpha:
             extra_samples = self.ifds[0].ExtraSamples.count or 0
