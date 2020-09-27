@@ -140,3 +140,10 @@ TIFF_TAGS = {
     34735: "GeoKeyDirectoryTag",
     42113: "NoData"
 }
+
+class MaskFlags(enum.IntEnum):
+    """https://github.com/mapbox/rasterio/blob/master/rasterio/enums.py#L80-L84"""
+    all_valid = 1
+    per_dataset = 2
+    alpha = 4
+    nodata = 8
