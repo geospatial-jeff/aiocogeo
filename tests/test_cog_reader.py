@@ -487,6 +487,7 @@ async def test_cog_palette(create_cog_reader):
             cog_interp = cog.color_interp
             rio_interp = ds.colorinterp
             assert cog_interp[0].value == rio_interp[0].value
+            assert cog.colormap == ds.colormap(1)
 
 
 @pytest.mark.asyncio
