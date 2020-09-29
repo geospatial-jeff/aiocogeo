@@ -189,7 +189,7 @@ class COGReader(ReaderMixin, PartialReadInterface):
         return PHOTOMETRIC[self.ifds[0].PhotometricInterpretation.value]
 
     @property
-    def color_map(self) -> Optional[Dict[int, Tuple[int, int, int]]]:
+    def colormap(self) -> Optional[Dict[int, Tuple[int, int, int]]]:
         """https://www.awaresystems.be/imaging/tiff/tifftags/colormap.html"""
         if self.ifds[0].ColorMap:
             colormap = {}
