@@ -14,14 +14,34 @@ COMPRESSIONS = {
 
 INTERLEAVE = {1: "pixel", 2: "band"}
 
-# https://www.awaresystems.be/imaging/tiff/tifftags/photometricinterpretation.html
+class ColorInterp(enum.IntEnum):
+    """https://github.com/mapbox/rasterio/blob/master/rasterio/enums.py#L6-L25"""
+    undefined = 0
+    gray = 1
+    grey = 1
+    palette = 2
+    red = 3
+    green = 4
+    blue = 5
+    alpha = 6
+    hue = 7
+    saturation = 8
+    lightness = 9
+    cyan = 10
+    magenta = 11
+    yellow = 12
+    black = 13
+    Y = 14
+    Cb = 15
+    Cr = 16
+
 PHOTOMETRIC = {
     0: "miniswhite",
     1: "minisblack",
     2: "rgb",
     3: "palette",
     4: "mask",
-    5: "separated",
+    5: "cmyk",
     6: "ycbcr",
     8: "cielab",
     9: "icclab",
@@ -128,6 +148,7 @@ TIFF_TAGS = {
     277: "SamplesPerPixel",
     284: "PlanarConfiguration",
     317: "Predictor",
+    320: "ColorMap",
     322: "TileWidth",
     323: "TileHeight",
     324: "TileOffsets",

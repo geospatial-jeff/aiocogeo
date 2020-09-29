@@ -12,12 +12,12 @@ from PIL import Image
 import numpy as np
 
 from . import config
-from .constants import MaskFlags, PHOTOMETRIC
+from .constants import ColorInterp, MaskFlags, PHOTOMETRIC
 from .errors import InvalidTiffError, TileNotFoundError
 from .filesystems import Filesystem
 from .ifd import IFD, ImageIFD, MaskIFD
 from .partial_reads import PartialReadInterface
-from .utils import run_in_background
+from .utils import run_in_background, chunks
 
 logger = logging.getLogger(__name__)
 logger.setLevel(config.LOG_LEVEL)
@@ -114,7 +114,7 @@ class COGReader(ReaderMixin, PartialReadInterface):
             "crs": f"EPSG:{self.epsg}",
             "nodata": ifd.nodata,
             "tiled": True,
-            "photometric": PHOTOMETRIC[ifd.PhotometricInterpretation.value],
+            "photometric": self.photometric,
         }
 
     @property
@@ -183,6 +183,57 @@ class COGReader(ReaderMixin, PartialReadInterface):
                 band_flags.append([MaskFlags.all_valid])
             return band_flags
         return [flags for _ in range(bands)]
+
+    @property
+    def photometric(self):
+        return PHOTOMETRIC[self.ifds[0].PhotometricInterpretation.value]
+
+    @property
+    def colormap(self) -> Optional[Dict[int, Tuple[int, int, int]]]:
+        """https://www.awaresystems.be/imaging/tiff/tifftags/colormap.html"""
+        if self.ifds[0].ColorMap:
+            colormap = {}
+            count = 2 ** self.ifds[0].BitsPerSample.value
+
+            nodata_val = None
+            if self.has_alpha or self.nodata is not None:
+                nodata_val = 0 if self.has_alpha else self.nodata
+
+            transform = lambda val: int((val / 65535) * 255)
+            for idx in range(count):
+                color = [transform(self.ifds[0].ColorMap.value[idx + i * count]) for i in range(3)]
+                if nodata_val is not None:
+                    color.append(0 if idx == nodata_val else 255)
+                colormap[idx] = tuple(color)
+            return colormap
+        return None
+
+    @property
+    def color_interp(self):
+        """
+        https://gdal.org/user/raster_data_model.html#raster-band
+        https://trac.osgeo.org/gdal/ticket/4547#comment:1
+        """
+        photometric = self.photometric
+        if photometric == "rgb":
+            interp = [ColorInterp.red, ColorInterp.green, ColorInterp.blue]
+            if self.has_alpha:
+                interp.append(ColorInterp.alpha)
+        elif photometric == "minisblack" or photometric == "miniswhite":
+            interp = [ColorInterp.gray]
+        elif photometric == "palette":
+            interp = [ColorInterp.palette]
+        elif photometric == "cmyk":
+            interp = [ColorInterp.cyan, ColorInterp.magenta, ColorInterp.yellow, ColorInterp.black]
+        elif photometric == "ycbcr":
+            interp = [ColorInterp.red, ColorInterp.green, ColorInterp.blue]
+        elif photometric == "cielab" or photometric == "icclab" or photometric == "itulab":
+            interp = [ColorInterp.lightness, ColorInterp.lightness, ColorInterp.lightness]
+        else:
+            interp = [ColorInterp.undefined for _ in range(self.profile['count'])]
+        return interp
+
+
 
     @property
     def has_alpha(self) -> bool:

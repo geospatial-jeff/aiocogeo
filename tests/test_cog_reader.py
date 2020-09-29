@@ -38,6 +38,7 @@ async def test_cog_metadata(infile, create_cog_reader):
             cog_profile.pop("photometric", None)
             rio_profile.pop("photometric", None)
 
+            assert [member.value for member in ds.colorinterp] == [member.value for member in cog.color_interp]
             assert rio_profile == cog_profile
             assert ds.overviews(1) == cog.overviews
 
@@ -476,6 +477,17 @@ async def test_read_not_in_bounds(create_cog_reader, infile):
             bounds = transform_bounds("EPSG:3857", f"EPSG:{cog.epsg}", *bounds)
         with pytest.raises(TileNotFoundError):
             await cog.read(bounds=bounds, shape=(256, 256))
+
+
+@pytest.mark.asyncio
+async def test_cog_palette(create_cog_reader):
+    infile = "https://async-cog-reader-test-data.s3.amazonaws.com/cog_cmap.tif"
+    async with create_cog_reader(infile) as cog:
+        with rasterio.open(infile) as ds:
+            cog_interp = cog.color_interp
+            rio_interp = ds.colorinterp
+            assert cog_interp[0].value == rio_interp[0].value
+            assert cog.colormap == ds.colormap(1)
 
 
 @pytest.mark.asyncio
