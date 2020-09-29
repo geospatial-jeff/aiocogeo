@@ -194,9 +194,17 @@ class COGReader(ReaderMixin, PartialReadInterface):
         if self.ifds[0].ColorMap:
             colormap = {}
             count = 2 ** self.ifds[0].BitsPerSample.value
+
+            nodata_val = None
+            if self.has_alpha or self.nodata is not None:
+                nodata_val = 0 if self.has_alpha else self.nodata
+
             transform = lambda val: int((val / 65535) * 255)
             for idx in range(count):
-                colormap[idx] = tuple([transform(self.ifds[0].ColorMap.value[idx + i * count]) for i in range(3)])
+                color = [transform(self.ifds[0].ColorMap.value[idx + i * count]) for i in range(3)]
+                if nodata_val is not None:
+                    color.append(0 if idx == nodata_val else 255)
+                colormap[idx] = tuple(color)
             return colormap
         return None
 
