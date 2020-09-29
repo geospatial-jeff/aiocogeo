@@ -72,6 +72,7 @@ class OptionalTags:
     Predictor: Tag = None
     JPEGTables: Tag = None
     ExtraSamples: Tag = None
+    ColorMap: Tag = None
 
     # GeoTiff
     GeoKeyDirectoryTag: Tag = None

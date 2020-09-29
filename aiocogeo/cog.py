@@ -17,7 +17,7 @@ from .errors import InvalidTiffError, TileNotFoundError
 from .filesystems import Filesystem
 from .ifd import IFD, ImageIFD, MaskIFD
 from .partial_reads import PartialReadInterface
-from .utils import run_in_background
+from .utils import run_in_background, chunks
 
 logger = logging.getLogger(__name__)
 logger.setLevel(config.LOG_LEVEL)
@@ -187,6 +187,18 @@ class COGReader(ReaderMixin, PartialReadInterface):
     @property
     def photometric(self):
         return PHOTOMETRIC[self.ifds[0].PhotometricInterpretation.value]
+
+    @property
+    def color_map(self) -> Optional[Dict[int, Tuple[int, int, int]]]:
+        """https://www.awaresystems.be/imaging/tiff/tifftags/colormap.html"""
+        if self.ifds[0].ColorMap:
+            colormap = {}
+            count = 2 ** self.ifds[0].BitsPerSample.value
+            transform = lambda val: int((val / 65535) * 255)
+            for idx in range(count):
+                colormap[idx] = tuple([transform(self.ifds[0].ColorMap.value[idx + i * count]) for i in range(3)])
+            return colormap
+        return None
 
     @property
     def color_interp(self):

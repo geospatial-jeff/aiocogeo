@@ -1,6 +1,4 @@
-import abc
 import enum
-from dataclasses import dataclass
 
 WEB_MERCATOR_EPSG = 3857
 
@@ -150,6 +148,7 @@ TIFF_TAGS = {
     277: "SamplesPerPixel",
     284: "PlanarConfiguration",
     317: "Predictor",
+    320: "ColorMap",
     322: "TileWidth",
     323: "TileHeight",
     324: "TileOffsets",

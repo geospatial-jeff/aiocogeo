@@ -1,6 +1,6 @@
 import asyncio
 from functools import partial
-from typing import Any, Callable
+from typing import Any, Callable, List
 
 
 async def run_in_background(
@@ -18,3 +18,9 @@ async def run_in_background(
     loop = asyncio.get_event_loop()
     func = partial(func, *args, **kwargs)
     return await loop.run_in_executor(None, func)
+
+
+def chunks(lst: List, n: int):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
