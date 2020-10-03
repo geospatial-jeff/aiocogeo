@@ -233,8 +233,6 @@ class COGReader(ReaderMixin, PartialReadInterface):
             interp = [ColorInterp.undefined for _ in range(self.profile['count'])]
         return interp
 
-
-
     @property
     def has_alpha(self) -> bool:
         """Check if the image has an alpha band"""
@@ -247,6 +245,10 @@ class COGReader(ReaderMixin, PartialReadInterface):
     @property
     def nodata(self) -> Optional[int]:
         return self.ifds[0].nodata
+
+    @property
+    def gdal_metadata(self) -> Dict:
+        return self.ifds[0].gdal_metadata
 
     async def _read_header(self) -> None:
         """Internal method to read image header and parse into IFDs and Tags"""

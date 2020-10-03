@@ -3,10 +3,10 @@ import math
 from typing import Dict, Optional, Tuple, Union
 
 import numpy as np
+import xmltodict
 
 from .compression import Compression
 from .constants import COMPRESSIONS, INTERLEAVE, SAMPLE_DTYPES
-from .errors import TileNotFoundError
 from .filesystems import Filesystem
 from .tag import Tag
 from .utils import run_in_background
@@ -81,6 +81,7 @@ class OptionalTags:
 
     # GDAL private tags
     NoData: Tag = None
+    GdalMetadata: Tag = None
 
 
 @dataclass
@@ -157,6 +158,17 @@ class ImageIFD(OptionalTags, Compression, RequiredTags, IFD):
             math.ceil(self.ImageWidth.value / float(self.TileWidth.value)),
             math.ceil(self.ImageHeight.value / float(self.TileHeight.value)),
         )
+
+    @property
+    def gdal_metadata(self) -> Dict:
+        """Return gdal metadata"""
+        if self.GdalMetadata:
+            xml = b''.join(self.GdalMetadata.value[:-1]).decode('utf-8')
+            parsed = xmltodict.parse(xml)
+            tags = parsed['GDALMetadata']['Item']
+            if isinstance(tags, list):
+                return {tag['@name']:tag['#text'] for tag in tags}
+            return {tags['@name']:tags['#text']}
 
     def __iter__(self):
         """Iterate through TIFF Tags"""
