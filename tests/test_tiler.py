@@ -73,11 +73,11 @@ async def test_cog_tiler_part(create_cog_reader):
     )
     async with create_cog_reader(infile_nodata) as cog:
         tiler = COGTiler(cog)
-        arr = await tiler.part(
+        tile = await tiler.part(
             bbox=(-10526706.9, 4445561.5, -10526084.1, 4446144.0),
             bbox_crs=CRS.from_epsg(cog.epsg),
         )
-        assert arr.shape == (3, 976, 1043)
+        assert tile.arr.shape == (3, 976, 1043)
 
 
 @pytest.mark.asyncio
@@ -87,13 +87,13 @@ async def test_cog_tiler_part_dimensions(create_cog_reader):
     )
     async with create_cog_reader(infile_nodata) as cog:
         tiler = COGTiler(cog)
-        arr = await tiler.part(
+        tile = await tiler.part(
             bbox=(-10526706.9, 4445561.5, -10526084.1, 4446144.0),
             bbox_crs=CRS.from_epsg(cog.epsg),
             width=500,
             height=500,
         )
-        assert arr.shape == (3, 500, 500)
+        assert tile.arr.shape == (3, 500, 500)
 
 
 @pytest.mark.asyncio
@@ -101,8 +101,8 @@ async def test_cog_tiler_preview(create_cog_reader):
     infile = "https://async-cog-reader-test-data.s3.amazonaws.com/webp_cog.tif"
     async with create_cog_reader(infile) as cog:
         tiler = COGTiler(cog)
-        arr = await tiler.preview()
-        assert arr.shape == (3, 1024, 864)
+        tile = await tiler.preview()
+        assert tile.arr.shape == (3, 1024, 864)
 
 
 @pytest.mark.asyncio
@@ -110,8 +110,8 @@ async def test_cog_tiler_preview_max_size(create_cog_reader):
     infile = "https://async-cog-reader-test-data.s3.amazonaws.com/webp_cog.tif"
     async with create_cog_reader(infile) as cog:
         tiler = COGTiler(cog)
-        arr = await tiler.preview(max_size=512)
-        assert arr.shape == (3, 512, 432)
+        tile = await tiler.preview(max_size=512)
+        assert tile.arr.shape == (3, 512, 432)
 
 
 @pytest.mark.asyncio
@@ -119,8 +119,8 @@ async def test_cog_tiler_preview_dimensions(create_cog_reader):
     infile = "https://async-cog-reader-test-data.s3.amazonaws.com/webp_cog.tif"
     async with create_cog_reader(infile) as cog:
         tiler = COGTiler(cog)
-        arr = await tiler.preview(width=512, height=512)
-        assert arr.shape == (3, 512, 512)
+        tile = await tiler.preview(width=512, height=512)
+        assert tile.arr.shape == (3, 512, 512)
 
 
 @pytest.mark.asyncio

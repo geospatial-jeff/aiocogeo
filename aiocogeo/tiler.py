@@ -43,6 +43,27 @@ class COGInfo:
     colormap: Optional[Dict[int, Sequence[int]]] = None
 
 
+
+@dataclass
+class TileResponse:
+    arr: np.ndarray
+    mask: Optional[np.ma.masked_array] = None
+
+    def __iter__(self):
+        """
+        Allow for variable expansion (``arr, mask = TileResponse``)
+
+        """
+        for i in (self.arr, self.mask):
+            yield i
+
+    @classmethod
+    def from_array(cls, array: Union[np.ndarray, np.ma.masked_array]) -> "TileResponse":
+        if isinstance(array, np.ma.masked_array):
+            return cls(array.data, array.mask)
+        return cls(array.data)
+
+
 @dataclass
 class COGTiler(AsyncBaseReader):
     cog: COGReader
@@ -175,7 +196,7 @@ class COGTiler(AsyncBaseReader):
         tilesize: int = 256,
         resample_method: int = Image.NEAREST,
         tms: TileMatrixSet = DEFAULT_TMS,
-    ) -> Coroutine[Any, Any, Tuple[np.ndarray, np.ndarray]]:
+    ) -> Coroutine[Any, Any, TileResponse]:
         tile = morecantile.Tile(x=tile_x, y=tile_y, z=tile_z)
         tile_bounds = tms.xy_bounds(tile)
         width = height = tilesize
@@ -192,9 +213,7 @@ class COGTiler(AsyncBaseReader):
                 tile_bounds, shape=(width, height), resample_method=resample_method
             )
 
-        if self.cog.is_masked:
-            return arr.data, arr.mask
-        return arr, np.full(shape=(width, height), fill_value=255).astype('uint8')
+        return TileResponse.from_array(arr)
 
     async def part(
         self,
@@ -203,7 +222,7 @@ class COGTiler(AsyncBaseReader):
         width: int = None,
         height: int = None,
         resample_method: int = Image.NEAREST
-    ) -> np.ndarray:
+    ) -> TileResponse:
         if bbox_crs != self.cog.epsg:
             bbox = transform_bounds(bbox_crs, CRS.from_epsg(self.cog.epsg), *bbox)
 
@@ -212,7 +231,7 @@ class COGTiler(AsyncBaseReader):
             height = math.ceil((bbox[3] - bbox[1]) / -self.profile['transform'].e)
 
         arr = await self.cog.read(bounds=bbox, shape=(width, height), resample_method=resample_method)
-        return arr
+        return TileResponse.from_array(arr)
 
     async def preview(
         self,
@@ -220,7 +239,7 @@ class COGTiler(AsyncBaseReader):
         height: int = None,
         max_size: int = 1024,
         resample_method: int = Image.NEAREST,
-    ):
+    ) -> TileResponse:
         # https://github.com/cogeotiff/rio-tiler/blob/master/rio_tiler/reader.py#L293-L303
         if not height and not width:
             if max(self.profile["height"], self.profile["width"]) < max_size:
@@ -233,11 +252,12 @@ class COGTiler(AsyncBaseReader):
                 else:
                     width = max_size
                     height = math.ceil(width * ratio)
-        return await self.cog.read(
+        arr = await self.cog.read(
             bounds=self.cog.bounds,
             shape=(width, height),
             resample_method=resample_method,
         )
+        return TileResponse.from_array(arr)
 
     async def point(
         self, lon: float, lat: float, **kwargs: Any
