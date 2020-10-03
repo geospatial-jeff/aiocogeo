@@ -176,6 +176,13 @@ TIFF_TAGS = {
 }
 
 
+GEO_KEYS = {
+    1025: "RasterType",
+    2048: "GeographicType",
+    3072: "ProjectedType",
+}
+
+
 # https://gdal.org/drivers/raster/gtiff.html#metadata
 GDAL_METADATA_TAGS = [
     "DocumentName",

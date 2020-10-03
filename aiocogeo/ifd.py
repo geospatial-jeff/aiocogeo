@@ -8,7 +8,7 @@ import xmltodict
 from .compression import Compression
 from .constants import COMPRESSIONS, GDAL_METADATA_TAGS, INTERLEAVE, SAMPLE_DTYPES
 from .filesystems import Filesystem
-from .tag import Tag
+from .tag import GeoKeyDirectory, Tag
 from .utils import run_in_background
 
 @dataclass
@@ -16,6 +16,7 @@ class IFD:
     next_ifd_offset: int
     tag_count: int
     _file_reader: Filesystem
+
 
     @staticmethod
     def _is_masked(tiff_tags: Dict[str, Tag]) -> bool:
@@ -44,6 +45,9 @@ class IFD:
                 tiff_tags[tag.name] = tag
         file_reader.seek(ifd_start + (12 * tag_count) + 2)
         next_ifd_offset = await file_reader.read(4, cast_to_int=True)
+
+        if 'GeoKeyDirectoryTag' in tiff_tags:
+            tiff_tags['geo_keys'] = GeoKeyDirectory.read(tiff_tags['GeoKeyDirectoryTag'])
 
         # Check if mask
         if cls._is_masked(tiff_tags):
@@ -86,7 +90,6 @@ class OptionalTags:
     MinSampleValue: Tag = None
     MaxSampleValue: Tag = None
 
-
     # GeoTiff
     GeoKeyDirectoryTag: Tag = None
     ModelPixelScaleTag: Tag = None
@@ -100,6 +103,7 @@ class OptionalTags:
 @dataclass
 class ImageIFD(OptionalTags, Compression, RequiredTags, IFD):
     _is_alpha: bool = False
+    geo_keys: Optional[GeoKeyDirectory] = None
 
     @property
     def is_alpha(self) -> bool:
