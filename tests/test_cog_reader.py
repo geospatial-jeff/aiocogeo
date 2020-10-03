@@ -18,7 +18,7 @@ from shapely.geometry import Polygon
 
 from aiocogeo import config, COGReader
 from aiocogeo.ifd import IFD
-from aiocogeo.tag import Tag
+from aiocogeo.tag import Tag, BaseTag
 from aiocogeo.tiler import COGTiler
 from aiocogeo.errors import InvalidTiffError, TileNotFoundError
 from aiocogeo.constants import MaskFlags
@@ -530,7 +530,7 @@ async def test_cog_metadata_iter(infile, create_cog_reader):
         for ifd in cog:
             assert isinstance(ifd, IFD)
             for tag in ifd:
-                assert isinstance(tag, Tag)
+                assert isinstance(tag, BaseTag)
 
 
 @pytest.mark.asyncio
