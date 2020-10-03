@@ -54,7 +54,7 @@ setup(
         "Pillow",
         "stac-pydantic>=1.3.*",
         "geojson-pydantic==0.1.0",
-        "xmljson"
+        "xmltodict"
     ],
     test_suite="tests",
     setup_requires=[
