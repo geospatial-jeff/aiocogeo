@@ -6,7 +6,7 @@ import numpy as np
 import xmltodict
 
 from .compression import Compression
-from .constants import COMPRESSIONS, INTERLEAVE, SAMPLE_DTYPES
+from .constants import COMPRESSIONS, GDAL_METADATA_TAGS, INTERLEAVE, SAMPLE_DTYPES
 from .filesystems import Filesystem
 from .tag import Tag
 from .utils import run_in_background
@@ -73,6 +73,19 @@ class OptionalTags:
     JPEGTables: Tag = None
     ExtraSamples: Tag = None
     ColorMap: Tag = None
+    ImageDescription: Tag = None
+    DocumentName: Tag = None
+    Software: Tag = None
+    DateTime: Tag = None
+    Artist: Tag = None
+    HostComputer: Tag = None
+    Copyright: Tag = None
+    XResolution: Tag = None
+    YResolution: Tag = None
+    ResolutionUnit: Tag = None
+    MinSampleValue: Tag = None
+    MaxSampleValue: Tag = None
+
 
     # GeoTiff
     GeoKeyDirectoryTag: Tag = None
@@ -162,13 +175,27 @@ class ImageIFD(OptionalTags, Compression, RequiredTags, IFD):
     @property
     def gdal_metadata(self) -> Dict:
         """Return gdal metadata"""
+        meta = {}
+        for tag in GDAL_METADATA_TAGS:
+            inst = getattr(self, tag)
+            if inst is not None:
+                if isinstance(inst.value, tuple):
+                    # TODO: Maybe we are reading one extra byte
+                    val = b"".join(inst.value)[:-1].decode('utf-8')
+                else:
+                    val = inst.value
+                meta[f"TIFFTAG_{tag.upper()}"] = val
+
         if self.GdalMetadata:
             xml = b''.join(self.GdalMetadata.value[:-1]).decode('utf-8')
             parsed = xmltodict.parse(xml)
             tags = parsed['GDALMetadata']['Item']
             if isinstance(tags, list):
-                return {tag['@name']:tag['#text'] for tag in tags}
-            return {tags['@name']:tags['#text']}
+                meta.update({tag['@name']:tag['#text'] for tag in tags})
+            else:
+                meta.update({tags['@name']:tags['#text']})
+
+        return meta
 
     def __iter__(self):
         """Iterate through TIFF Tags"""

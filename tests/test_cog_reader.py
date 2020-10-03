@@ -42,6 +42,14 @@ async def test_cog_metadata(infile, create_cog_reader):
             assert rio_profile == cog_profile
             assert ds.overviews(1) == cog.overviews
 
+            rio_tags = ds.tags()
+            gdal_metadata = cog.gdal_metadata
+
+            for (k,v) in rio_tags.items():
+                if k in ("TIFFTAG_XRESOLUTION", "TIFFTAG_YRESOLUTION", "TIFFTAG_RESOLUTIONUNIT", "AREA_OR_POINT"):
+                    continue
+                assert str(gdal_metadata[k]) == v
+
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("infile", TEST_DATA)

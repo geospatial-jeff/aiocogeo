@@ -145,8 +145,19 @@ TIFF_TAGS = {
     258: "BitsPerSample",
     259: "Compression",
     262: "PhotometricInterpretation",
+    269: "DocumentName",
+    270: "ImageDescription",
     277: "SamplesPerPixel",
+    280: "MinSampleValue",
+    281: "MaxSampleValue",
+    282: "XResolution",
+    283: "YResolution",
     284: "PlanarConfiguration",
+    296: "ResolutionUnit",
+    305: "Software",
+    306: "DateTime",
+    315: "Artist",
+    316: "HostComputer",
     317: "Predictor",
     320: "ColorMap",
     322: "TileWidth",
@@ -156,12 +167,31 @@ TIFF_TAGS = {
     338: "ExtraSamples",
     339: "SampleFormat",
     347: "JPEGTables",
+    33432: "Copyright",
     33550: "ModelPixelScaleTag",
     33922: "ModelTiepointTag",
     34735: "GeoKeyDirectoryTag",
     42112: "GdalMetadata",
     42113: "NoData"
 }
+
+
+# https://gdal.org/drivers/raster/gtiff.html#metadata
+GDAL_METADATA_TAGS = [
+    "DocumentName",
+    "ImageDescription",
+    "Software",
+    "DateTime",
+    "Artist",
+    "HostComputer",
+    "Copyright",
+    "XResolution",
+    "YResolution",
+    "ResolutionUnit",
+    "MinSampleValue",
+    "MaxSampleValue"
+]
+
 
 class MaskFlags(enum.IntEnum):
     """https://github.com/mapbox/rasterio/blob/master/rasterio/enums.py#L80-L84"""
