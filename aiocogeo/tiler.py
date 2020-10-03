@@ -191,7 +191,10 @@ class COGTiler(AsyncBaseReader):
             arr = await self.cog.read(
                 tile_bounds, shape=(width, height), resample_method=resample_method
             )
-        return arr.data, arr.mask
+
+        if self.cog.is_masked:
+            return arr.data, arr.mask
+        return arr, np.full(shape=(width, height), fill_value=255).astype('uint8')
 
     async def part(
         self,
@@ -202,13 +205,13 @@ class COGTiler(AsyncBaseReader):
         resample_method: int = Image.NEAREST
     ) -> np.ndarray:
         if bbox_crs != self.cog.epsg:
-            bounds = transform_bounds(bbox_crs, CRS.from_epsg(self.cog.epsg), *bbox)
+            bbox = transform_bounds(bbox_crs, CRS.from_epsg(self.cog.epsg), *bbox)
 
         if not height or not width:
-            width = math.ceil((bounds[2] - bounds[0]) / self.profile['transform'].a)
-            height = math.ceil((bounds[3] - bounds[1]) / -self.profile['transform'].e)
+            width = math.ceil((bbox[2] - bbox[0]) / self.profile['transform'].a)
+            height = math.ceil((bbox[3] - bbox[1]) / -self.profile['transform'].e)
 
-        arr = await self.cog.read(bounds=bounds, shape=(width, height), resample_method=resample_method)
+        arr = await self.cog.read(bounds=bbox, shape=(width, height), resample_method=resample_method)
         return arr
 
     async def preview(
