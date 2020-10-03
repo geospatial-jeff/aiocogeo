@@ -204,7 +204,7 @@ class ImageIFD(OptionalTags, Compression, RequiredTags, IFD):
     def __iter__(self):
         """Iterate through TIFF Tags"""
         for (k, v) in self.__dict__.items():
-            if k not in ("next_ifd_offset", "tag_count", "_file_reader") and v:
+            if k not in ("next_ifd_offset", "tag_count", "_file_reader", "geo_keys") and v:
                 yield v
 
 
