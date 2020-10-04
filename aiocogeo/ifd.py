@@ -6,7 +6,7 @@ import numpy as np
 import xmltodict
 
 from .compression import Compression
-from .constants import COMPRESSIONS, GDAL_METADATA_TAGS, INTERLEAVE, SAMPLE_DTYPES
+from .constants import COMPRESSIONS, GDAL_METADATA_TAGS, INTERLEAVE, RASTER_TYPE, SAMPLE_DTYPES
 from .filesystems import Filesystem
 from .tag import GeoKeyDirectory, Tag
 from .utils import run_in_background
@@ -198,6 +198,9 @@ class ImageIFD(OptionalTags, Compression, RequiredTags, IFD):
                 meta.update({tag['@name']:tag['#text'] for tag in tags})
             else:
                 meta.update({tags['@name']:tags['#text']})
+
+        if self.geo_keys:
+            meta['AREA_OR_POINT'] = RASTER_TYPE[self.geo_keys.RasterType.value]
 
         return meta
 

@@ -46,7 +46,7 @@ async def test_cog_metadata(infile, create_cog_reader):
             gdal_metadata = cog.gdal_metadata
 
             for (k,v) in rio_tags.items():
-                if k in ("TIFFTAG_XRESOLUTION", "TIFFTAG_YRESOLUTION", "TIFFTAG_RESOLUTIONUNIT", "AREA_OR_POINT"):
+                if k in ("TIFFTAG_XRESOLUTION", "TIFFTAG_YRESOLUTION", "TIFFTAG_RESOLUTIONUNIT"):
                     continue
                 assert str(gdal_metadata[k]) == v
 

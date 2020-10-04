@@ -200,6 +200,13 @@ GDAL_METADATA_TAGS = [
 ]
 
 
+RASTER_TYPE = {
+    0: "Unknown",
+    1: "Area",
+    2: "Point",
+}
+
+
 class MaskFlags(enum.IntEnum):
     """https://github.com/mapbox/rasterio/blob/master/rasterio/enums.py#L80-L84"""
     all_valid = 1
