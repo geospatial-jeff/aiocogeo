@@ -5,7 +5,7 @@ import struct
 from typing import Any, Optional, Tuple, Union
 
 from .config import INGESTED_BYTES_AT_OPEN, LOG_LEVEL
-from .constants import TIFF_TAGS
+from .constants import GEO_KEYS, TIFF_TAGS
 from .filesystems import Filesystem
 
 
@@ -34,13 +34,15 @@ TAG_TYPES = {
     16: TagType(format="Q", size=8),  # TIFFlong8
 }
 
-
 @dataclass
-class Tag:
+class BaseTag:
     code: int
     name: str
-    tag_type: TagType
     count: int
+
+@dataclass
+class Tag(BaseTag):
+    tag_type: TagType
     length: int
     value: Union[Any, Tuple[Any]]
 
@@ -99,3 +101,43 @@ class Tag:
             value=value,
         )
         return tag
+
+
+@dataclass
+class GeoKey(BaseTag):
+    """http://docs.opengeospatial.org/is/19-008r4/19-008r4.html#_geokey"""
+    tag_location: int
+    value: Any
+
+    @classmethod
+    def read(cls, key: Tuple[int, int, int, int]):
+        return cls(
+            code=key[0],
+            tag_location=key[1],
+            count=key[2],
+            value=key[3],
+            name=GEO_KEYS[key[0]]
+        )
+
+
+@dataclass
+class GeoKeyDirectory:
+    """http://docs.opengeospatial.org/is/19-008r4/19-008r4.html#_requirements_class_geokeydirectorytag"""
+    RasterType: GeoKey
+    GeographicType: Optional[GeoKey] = None
+    ProjectedType: Optional[GeoKey] = None
+
+    @classmethod
+    def read(cls, tag: Tag) -> "GeoKeyDirectory":
+        """Parse GeoKeyDirectoryTag"""
+        geokeys = {}
+        assert tag.name == 'GeoKeyDirectoryTag'
+        for idx in range(0, len(tag), 4):
+            if tag[idx] in list(GEO_KEYS):
+                geokeys[GEO_KEYS[tag[idx]]] = GeoKey.read(tag[idx:idx+4])
+        return cls(**geokeys)
+
+    @property
+    def epsg(self) -> int:
+        """Return the EPSG code representing the crs of the image"""
+        return self.ProjectedType.value if self.ProjectedType else self.GeographicType.value

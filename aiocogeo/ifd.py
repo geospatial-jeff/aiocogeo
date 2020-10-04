@@ -3,12 +3,12 @@ import math
 from typing import Dict, Optional, Tuple, Union
 
 import numpy as np
+import xmltodict
 
 from .compression import Compression
-from .constants import COMPRESSIONS, INTERLEAVE, SAMPLE_DTYPES
-from .errors import TileNotFoundError
+from .constants import COMPRESSIONS, GDAL_METADATA_TAGS, INTERLEAVE, RASTER_TYPE, SAMPLE_DTYPES
 from .filesystems import Filesystem
-from .tag import Tag
+from .tag import GeoKeyDirectory, Tag
 from .utils import run_in_background
 
 @dataclass
@@ -16,6 +16,7 @@ class IFD:
     next_ifd_offset: int
     tag_count: int
     _file_reader: Filesystem
+
 
     @staticmethod
     def _is_masked(tiff_tags: Dict[str, Tag]) -> bool:
@@ -45,6 +46,9 @@ class IFD:
         file_reader.seek(ifd_start + (12 * tag_count) + 2)
         next_ifd_offset = await file_reader.read(4, cast_to_int=True)
 
+        if 'GeoKeyDirectoryTag' in tiff_tags:
+            tiff_tags['geo_keys'] = GeoKeyDirectory.read(tiff_tags['GeoKeyDirectoryTag'])
+
         # Check if mask
         if cls._is_masked(tiff_tags):
             return MaskIFD(next_ifd_offset, tag_count, file_reader, **tiff_tags)
@@ -73,6 +77,18 @@ class OptionalTags:
     JPEGTables: Tag = None
     ExtraSamples: Tag = None
     ColorMap: Tag = None
+    ImageDescription: Tag = None
+    DocumentName: Tag = None
+    Software: Tag = None
+    DateTime: Tag = None
+    Artist: Tag = None
+    HostComputer: Tag = None
+    Copyright: Tag = None
+    XResolution: Tag = None
+    YResolution: Tag = None
+    ResolutionUnit: Tag = None
+    MinSampleValue: Tag = None
+    MaxSampleValue: Tag = None
 
     # GeoTiff
     GeoKeyDirectoryTag: Tag = None
@@ -81,11 +97,13 @@ class OptionalTags:
 
     # GDAL private tags
     NoData: Tag = None
+    GdalMetadata: Tag = None
 
 
 @dataclass
 class ImageIFD(OptionalTags, Compression, RequiredTags, IFD):
     _is_alpha: bool = False
+    geo_keys: Optional[GeoKeyDirectory] = None
 
     @property
     def is_alpha(self) -> bool:
@@ -158,10 +176,38 @@ class ImageIFD(OptionalTags, Compression, RequiredTags, IFD):
             math.ceil(self.ImageHeight.value / float(self.TileHeight.value)),
         )
 
+    @property
+    def gdal_metadata(self) -> Dict:
+        """Return gdal metadata"""
+        meta = {}
+        for tag in GDAL_METADATA_TAGS:
+            inst = getattr(self, tag)
+            if inst is not None:
+                if isinstance(inst.value, tuple):
+                    # TODO: Maybe we are reading one extra byte
+                    val = b"".join(inst.value)[:-1].decode('utf-8')
+                else:
+                    val = inst.value
+                meta[f"TIFFTAG_{tag.upper()}"] = val
+
+        if self.GdalMetadata:
+            xml = b''.join(self.GdalMetadata.value[:-1]).decode('utf-8')
+            parsed = xmltodict.parse(xml)
+            tags = parsed['GDALMetadata']['Item']
+            if isinstance(tags, list):
+                meta.update({tag['@name']:tag['#text'] for tag in tags})
+            else:
+                meta.update({tags['@name']:tags['#text']})
+
+        if self.geo_keys:
+            meta['AREA_OR_POINT'] = RASTER_TYPE[self.geo_keys.RasterType.value]
+
+        return meta
+
     def __iter__(self):
         """Iterate through TIFF Tags"""
         for (k, v) in self.__dict__.items():
-            if k not in ("next_ifd_offset", "tag_count", "_file_reader") and v:
+            if k not in ("next_ifd_offset", "tag_count", "_file_reader", "geo_keys") and v:
                 yield v
 
 

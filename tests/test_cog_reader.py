@@ -18,7 +18,7 @@ from shapely.geometry import Polygon
 
 from aiocogeo import config, COGReader
 from aiocogeo.ifd import IFD
-from aiocogeo.tag import Tag
+from aiocogeo.tag import Tag, BaseTag
 from aiocogeo.tiler import COGTiler
 from aiocogeo.errors import InvalidTiffError, TileNotFoundError
 from aiocogeo.constants import MaskFlags
@@ -41,6 +41,14 @@ async def test_cog_metadata(infile, create_cog_reader):
             assert [member.value for member in ds.colorinterp] == [member.value for member in cog.color_interp]
             assert rio_profile == cog_profile
             assert ds.overviews(1) == cog.overviews
+
+            rio_tags = ds.tags()
+            gdal_metadata = cog.gdal_metadata
+
+            for (k,v) in rio_tags.items():
+                if k in ("TIFFTAG_XRESOLUTION", "TIFFTAG_YRESOLUTION", "TIFFTAG_RESOLUTIONUNIT"):
+                    continue
+                assert str(gdal_metadata[k]) == v
 
 
 @pytest.mark.asyncio
@@ -522,7 +530,7 @@ async def test_cog_metadata_iter(infile, create_cog_reader):
         for ifd in cog:
             assert isinstance(ifd, IFD)
             for tag in ifd:
-                assert isinstance(tag, Tag)
+                assert isinstance(tag, BaseTag)
 
 
 @pytest.mark.asyncio

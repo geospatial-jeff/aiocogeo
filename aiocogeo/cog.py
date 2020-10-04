@@ -120,12 +120,7 @@ class COGReader(ReaderMixin, PartialReadInterface):
     @property
     def epsg(self) -> int:
         """Return the EPSG code representing the crs of the image"""
-        ifd = self.ifds[0]
-        for idx in range(0, len(ifd.GeoKeyDirectoryTag), 4):
-            # 2048 is geographic crs
-            # 3072 is projected crs
-            if ifd.GeoKeyDirectoryTag[idx] in (2048, 3072):
-                return ifd.GeoKeyDirectoryTag[idx + 3]
+        return self.ifds[0].geo_keys.epsg
 
     @property
     def bounds(self) -> Tuple[float, float, float, float]:
@@ -233,8 +228,6 @@ class COGReader(ReaderMixin, PartialReadInterface):
             interp = [ColorInterp.undefined for _ in range(self.profile['count'])]
         return interp
 
-
-
     @property
     def has_alpha(self) -> bool:
         """Check if the image has an alpha band"""
@@ -247,6 +240,10 @@ class COGReader(ReaderMixin, PartialReadInterface):
     @property
     def nodata(self) -> Optional[int]:
         return self.ifds[0].nodata
+
+    @property
+    def gdal_metadata(self) -> Dict:
+        return self.ifds[0].gdal_metadata
 
     async def _read_header(self) -> None:
         """Internal method to read image header and parse into IFDs and Tags"""
