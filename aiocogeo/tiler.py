@@ -112,17 +112,6 @@ class COGTiler(AsyncBaseReader):
         return arr.astype(self.profile["dtype"])
 
     async def info(self) -> COGInfo:
-        # TODO: Make sure this is in EPSG:3857 before getting resolution
-        mercator_resolution = max(
-            self.profile["transform"][0], abs(self.profile["transform"][4])
-        )
-        max_zoom = zoom_for_pixelsize(mercator_resolution)
-        min_zoom = zoom_for_pixelsize(
-            mercator_resolution
-            * max(self.profile["width"], self.profile["height"])
-            / 256
-        )
-
         if self.cog.has_alpha:
             nodata_type = "Alpha"
         elif self.cog.is_masked:
@@ -136,8 +125,8 @@ class COGTiler(AsyncBaseReader):
         return COGInfo(
             bounds=self.bounds,
             center=self.center,
-            minzoom=min_zoom,
-            maxzoom=max_zoom,
+            minzoom=self.minzoom,
+            maxzoom=self.maxzoom,
             dtype=self.profile["dtype"],
             colorinterp=[color.name for color in self.cog.color_interp],
             nodata_type=nodata_type,
@@ -196,7 +185,7 @@ class COGTiler(AsyncBaseReader):
         tilesize: int = 256,
         resample_method: int = Image.NEAREST,
         tms: TileMatrixSet = DEFAULT_TMS,
-    ) -> Coroutine[Any, Any, TileResponse]:
+    ) -> TileResponse:
         tile = morecantile.Tile(x=tile_x, y=tile_y, z=tile_z)
         tile_bounds = tms.xy_bounds(tile)
         width = height = tilesize
@@ -261,7 +250,7 @@ class COGTiler(AsyncBaseReader):
 
     async def point(
         self, lon: float, lat: float, **kwargs: Any
-    ) -> Coroutine[Any, Any, List]:
+    ) -> List:
         coords = [lon, lat]
         if self.cog.epsg != 4326:
             coords = [pt[0] for pt in transform_coords(
