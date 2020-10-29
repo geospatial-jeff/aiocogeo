@@ -46,11 +46,11 @@ class ReaderMixin(abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def point(self, x: Union[float, int], y: Union[float, int]) -> Union[Union[np.ndarray, np.ma.masked_array], List[Union[np.ndarray, np.ma.masked_array]]]:
+    async def read_point(self, x: Union[float, int], y: Union[float, int]) -> Union[Union[np.ndarray, np.ma.masked_array], List[Union[np.ndarray, np.ma.masked_array]]]:
         ...
 
     @abc.abstractmethod
-    async def preview(
+    async def read_preview(
         self,
         max_size: int = 1024,
         height: Optional[int] = None,
@@ -63,8 +63,8 @@ class ReaderMixin(abc.ABC):
 @dataclass
 class COGReader(ReaderMixin, PartialReadInterface):
     filepath: str
-    ifds: Optional[List[ImageIFD]] = field(default_factory=lambda: [])
-    mask_ifds: Optional[List[MaskIFD]] = field(default_factory=lambda: [])
+    ifds: List[ImageIFD] = field(default_factory=lambda: [])
+    mask_ifds: List[MaskIFD] = field(default_factory=lambda: [])
 
     _version: Optional[int] = 42
     _big_tiff: Optional[bool] = False
@@ -118,12 +118,16 @@ class COGReader(ReaderMixin, PartialReadInterface):
         }
 
     @property
+    def indexes(self) -> Tuple[int]:
+        return (r + 1 for r in range(self.ifds[0].bands))
+
+    @property
     def epsg(self) -> int:
         """Return the EPSG code representing the crs of the image"""
         return self.ifds[0].geo_keys.epsg
 
     @property
-    def bounds(self) -> Tuple[float, float, float, float]:
+    def geo_bounds(self) -> Tuple[float, float, float, float]:
         """Return the bounds of the image in native crs"""
         gt = self.geotransform()
         tlx = gt.c
@@ -279,14 +283,13 @@ class COGReader(ReaderMixin, PartialReadInterface):
         )
         # Decimate the geotransform if an overview is requested
         if ovr_level > 0:
-            bounds = self.bounds
+            bounds = self.geo_bounds
             ifd = self.ifds[ovr_level]
             gt = affine.Affine.translation(bounds[0], bounds[3]) * affine.Affine.scale(
                 (bounds[2] - bounds[0]) / ifd.ImageWidth.value,
                 (bounds[1] - bounds[3]) / ifd.ImageHeight.value,
             )
         return gt
-
 
     async def get_tile(self, x: int, y: int, z: int) -> np.ndarray:
 
@@ -356,7 +359,7 @@ class COGReader(ReaderMixin, PartialReadInterface):
             dtype=ifd.dtype
         )
 
-        if not self._intersect_bounds(bounds, self.bounds):
+        if not self._intersect_bounds(bounds, self.geo_bounds):
             raise TileNotFoundError("Partial read is outside bounds of the image")
 
         # Request those tiles
@@ -376,8 +379,7 @@ class COGReader(ReaderMixin, PartialReadInterface):
 
         return postprocessed
 
-
-    async def point(self, x: Union[float, int], y: Union[float, int]) -> Union[np.ndarray, np.ma.masked_array]:
+    async def read_point(self, x: Union[float, int], y: Union[float, int]) -> Union[np.ndarray, np.ma.masked_array]:
         """Read pixel values for the given point"""
         ifd = self.ifds[0]
         geotransform = self.geotransform()
@@ -395,8 +397,7 @@ class COGReader(ReaderMixin, PartialReadInterface):
 
         return tile[:, xindex, yindex]
 
-
-    async def preview(
+    async def read_preview(
         self,
         max_size: int = 1024,
         height: Optional[int] = None,
@@ -421,11 +422,10 @@ class COGReader(ReaderMixin, PartialReadInterface):
                     width = max_size
                     height = math.ceil(width * ratio)
         return await self.read(
-            bounds=self.bounds,
+            bounds=self.geo_bounds,
             shape=(width, height),
             resample_method=resample_method
         )
-
 
     def create_tile_matrix_set(self, identifier: str = None) -> Dict[str, Any]:
         """Create an OGC TileMatrixSet where each TileMatrix corresponds to an overview"""
@@ -455,6 +455,7 @@ class COGReader(ReaderMixin, PartialReadInterface):
 FilterType = Callable[[COGReader], Any]
 MapType = Callable[[COGReader], Any]
 ReduceType = Callable[[List[Union[np.ndarray, np.ma.masked_array]]], Any]
+
 
 @dataclass
 class CompositeReader(ReaderMixin):
@@ -496,14 +497,14 @@ class CompositeReader(ReaderMixin):
         reducer = reducer or self.default_reducer
         return reducer(reads)
 
-    async def point(self, x: Union[float, int], y: Union[float, int], reducer: Optional[ReduceType] = None) -> List[Union[np.ndarray, np.ma.masked_array]]:
+    async def read_point(self, x: Union[float, int], y: Union[float, int], reducer: Optional[ReduceType] = None) -> List[Union[np.ndarray, np.ma.masked_array]]:
         points = await self.map(
             func=lambda r: r.point(x, y)
         )
         reducer = reducer or self.default_reducer
         return reducer(points)
 
-    async def preview(
+    async def read_preview(
         self,
         max_size: int = 1024,
         height: Optional[int] = None,

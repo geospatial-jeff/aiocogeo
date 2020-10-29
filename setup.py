@@ -5,12 +5,12 @@ with open("README.md") as f:
 
 extras = {
     "s3": ["aioboto3"],
-    "tiler": ["morecantile", "rasterio", "rio-tiler==git+https://github.com/cogeotiff/rio-tiler@async"],
+    "tiler": ["morecantile", "rasterio", "rio-tiler==2.0.0b19"],
     "dev": [
         "mercantile",
         "morecantile",
         "rasterio",
-        "rio-tiler==git+https://github.com/cogeotiff/rio-tiler@async",
+        "rio-tiler==2.0.0b19",
         "pytest<5.4",
         "pytest-asyncio<0.11.0",
         "pytest-cov",
