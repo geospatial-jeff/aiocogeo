@@ -431,24 +431,3 @@ class CompositeReader(ReaderMixin):
         )
         reducer = reducer or self.default_reducer
         return reducer(reads)
-
-    async def point(self, x: Union[float, int], y: Union[float, int], reducer: Optional[ReduceType] = None) -> List[Union[np.ndarray, np.ma.masked_array]]:
-        points = await self.map(
-            func=lambda r: r.point(x, y)
-        )
-        reducer = reducer or self.default_reducer
-        return reducer(points)
-
-    async def preview(
-        self,
-        max_size: int = 1024,
-        height: Optional[int] = None,
-        width: Optional[int] = None,
-        resample_method: int = Image.NEAREST,
-        reducer: Optional[ReduceType] = None,
-    ) -> List[Union[np.ndarray, np.ma.masked_array]]:
-        previews = await self.map(
-            func=lambda r: r.preview(max_size, height, width, resample_method)
-        )
-        reducer = reducer or self.default_reducer
-        return reducer(previews)
