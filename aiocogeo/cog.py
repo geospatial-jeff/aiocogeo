@@ -2,7 +2,6 @@ import abc
 import asyncio
 from dataclasses import dataclass, field
 import logging
-import math
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from urllib.parse import urljoin
 import uuid
@@ -17,7 +16,7 @@ from .errors import InvalidTiffError, TileNotFoundError
 from .filesystems import Filesystem
 from .ifd import IFD, ImageIFD, MaskIFD
 from .partial_reads import PartialReadInterface
-from .utils import run_in_background, chunks
+from .utils import run_in_background
 
 logger = logging.getLogger(__name__)
 logger.setLevel(config.LOG_LEVEL)
@@ -30,6 +29,10 @@ class ReaderMixin(abc.ABC):
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        ...
+
+    @abc.abstractmethod
+    def open(self):
         ...
 
     @abc.abstractmethod
@@ -59,6 +62,23 @@ class COGReader(ReaderMixin, PartialReadInterface):
 
     async def __aenter__(self):
         """Open the image and read the header"""
+        await self.open()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self._file_reader._close()
+
+    def __iter__(self):
+        """Iterate through image IFDs"""
+        for ifd in self.ifds:
+            yield ifd
+
+    async def open(self):
+        """open the cog"""
+        await self._open()
+
+    async def _open(self):
+        """internal method to open the cog by reading the file header"""
         async with Filesystem.create_from_filepath(self.filepath, **self.kwargs) as file_reader:
             self._file_reader = file_reader
             if (await file_reader.read(2)) == b"MM":
@@ -72,15 +92,6 @@ class COGReader(ReaderMixin, PartialReadInterface):
                 raise NotImplementedError("BigTiff is not yet supported")
             else:
                 raise InvalidTiffError("Not a valid TIFF")
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self._file_reader._close()
-
-    def __iter__(self):
-        """Iterate through image IFDs"""
-        for ifd in self.ifds:
-            yield ifd
 
     @property
     def profile(self) -> Dict[str, Any]:
