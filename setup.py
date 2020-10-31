@@ -5,7 +5,6 @@ with open("README.md") as f:
 
 extras = {
     "s3": ["aioboto3"],
-    "tiler": ["morecantile", "rasterio", "rio-tiler==2.0b9"],
     "dev": [
         "mercantile",
         "morecantile",
