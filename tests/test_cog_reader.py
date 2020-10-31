@@ -471,7 +471,7 @@ async def test_cog_get_overview_level(create_cog_reader, width, height):
 
         with rasterio.open(TEST_DATA[0]) as src:
             expected_ovr = rio_tiler_utils.get_overview_level(
-                src, src.native_bounds, height, width
+                src, src.bounds, height, width
             )
             # Our index for source data is 0 while rio tiler uses -1
             expected_ovr = 0 if expected_ovr == -1 else expected_ovr
