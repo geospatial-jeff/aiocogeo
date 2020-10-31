@@ -194,7 +194,7 @@ async def test_cog_read(infile, create_cog_reader):
         with rasterio.open(infile) as ds:
             _, zoom = get_zooms(ds)
         centroid = Polygon.from_bounds(
-            *transform_bounds(cog.epsg, "EPSG:4326", *cog.bounds)
+            *transform_bounds(cog.epsg, "EPSG:4326", *cog.native_bounds)
         ).centroid
         tile = mercantile.tile(centroid.x, centroid.y, zoom)
 
@@ -234,7 +234,7 @@ async def test_cog_read_single_band(create_cog_reader):
         with rasterio.open(infile) as ds:
             _, zoom = get_zooms(ds)
         centroid = Polygon.from_bounds(
-            *transform_bounds(cog.epsg, "EPSG:4326", *cog.bounds)
+            *transform_bounds(cog.epsg, "EPSG:4326", *cog.native_bounds)
         ).centroid
         tile = mercantile.tile(centroid.x, centroid.y, zoom)
         tile_native_bounds = transform_bounds(
@@ -467,11 +467,11 @@ async def test_cog_palette(create_cog_reader):
 )
 async def test_cog_get_overview_level(create_cog_reader, width, height):
     async with create_cog_reader(TEST_DATA[0]) as cog:
-        ovr = cog._get_overview_level(cog.bounds, width, height)
+        ovr = cog._get_overview_level(cog.native_bounds, width, height)
 
         with rasterio.open(TEST_DATA[0]) as src:
             expected_ovr = rio_tiler_utils.get_overview_level(
-                src, src.bounds, height, width
+                src, src.native_bounds, height, width
             )
             # Our index for source data is 0 while rio tiler uses -1
             expected_ovr = 0 if expected_ovr == -1 else expected_ovr

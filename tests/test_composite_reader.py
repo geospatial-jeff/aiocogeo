@@ -37,6 +37,6 @@ async def test_composite_reader_read(readers):
     composite_reader = CompositeReader(
         readers=readers
     )
-    bounds = readers[0].bounds
+    bounds = readers[0].native_bounds
     tiles = await composite_reader.read(bounds=bounds, shape=(256, 256))
     assert (tiles[0] == tiles[1]).all()

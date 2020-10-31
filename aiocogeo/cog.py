@@ -109,7 +109,7 @@ class COGReader(ReaderMixin, PartialReadInterface):
         return self.ifds[0].geo_keys.epsg
 
     @property
-    def bounds(self) -> Tuple[float, float, float, float]:
+    def native_bounds(self) -> Tuple[float, float, float, float]:
         """Return the bounds of the image in native crs"""
         gt = self.geotransform()
         tlx = gt.c
@@ -270,7 +270,7 @@ class COGReader(ReaderMixin, PartialReadInterface):
         )
         # Decimate the geotransform if an overview is requested
         if ovr_level > 0:
-            bounds = self.bounds
+            bounds = self.native_bounds
             ifd = self.ifds[ovr_level]
             gt = affine.Affine.translation(bounds[0], bounds[3]) * affine.Affine.scale(
                 (bounds[2] - bounds[0]) / ifd.ImageWidth.value,
@@ -347,7 +347,7 @@ class COGReader(ReaderMixin, PartialReadInterface):
             dtype=ifd.dtype
         )
 
-        if not self._intersect_bounds(bounds, self.bounds):
+        if not self._intersect_bounds(bounds, self.native_bounds):
             raise TileNotFoundError("Partial read is outside bounds of the image")
 
         # Request those tiles
