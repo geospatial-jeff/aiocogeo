@@ -119,6 +119,11 @@ class COGReader(ReaderMixin, PartialReadInterface):
         return (tlx, bry, brx, tly)
 
     @property
+    def indexes(self) -> Tuple[int]:
+        """Return rasterio style band indexes"""
+        return tuple([r + 1 for r in range(self.ifds[0].bands)])
+
+    @property
     def overviews(self) -> List[int]:
         """Return decimation factor for each overview (2**zoom)"""
         return [2 ** (ifd + 1) for ifd in range(len(self.ifds) - 1)]
