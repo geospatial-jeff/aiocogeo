@@ -25,7 +25,7 @@ setup(
     description="Asynchronous cogeotiff reader",
     long_description=desc,
     long_description_content_type="text/markdown",
-    version="0.1.7",
+    version="0.2.7",
     author=u"Jeff Albrecht",
     author_email="geospatialjeff@gmail.com",
     url="https://github.com/geospatial-jeff/aiocogeo",

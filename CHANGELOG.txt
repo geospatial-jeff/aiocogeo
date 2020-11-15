@@ -1,3 +1,11 @@
+0.2.7 (2020-11-15)
+------------------
+- Add `CompositeReader` and `STACReader` (#70)
+- Align mask recognition with GDAL RFC 15 (#72)
+- Read color interpretation (#75)
+- Improve geokey parsing (#79)
+
+
 0.1.7 (2020-08-15)
 ------------------
 - Add method to read pixel values at a given point (#62)
