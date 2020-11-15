@@ -2,7 +2,6 @@ import abc
 import asyncio
 from dataclasses import dataclass, field
 import logging
-import math
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from urllib.parse import urljoin
 import uuid
@@ -17,7 +16,7 @@ from .errors import InvalidTiffError, TileNotFoundError
 from .filesystems import Filesystem
 from .ifd import IFD, ImageIFD, MaskIFD
 from .partial_reads import PartialReadInterface
-from .utils import run_in_background, chunks
+from .utils import run_in_background
 
 logger = logging.getLogger(__name__)
 logger.setLevel(config.LOG_LEVEL)
@@ -45,20 +44,6 @@ class ReaderMixin(abc.ABC):
     ) -> Union[Union[np.ndarray, np.ma.masked_array], List[Union[np.ndarray, np.ma.masked_array]]]:
         ...
 
-    @abc.abstractmethod
-    async def point(self, x: Union[float, int], y: Union[float, int]) -> Union[Union[np.ndarray, np.ma.masked_array], List[Union[np.ndarray, np.ma.masked_array]]]:
-        ...
-
-    @abc.abstractmethod
-    async def preview(
-        self,
-        max_size: int = 1024,
-        height: Optional[int] = None,
-        width: Optional[int] = None,
-        resample_method: int = Image.NEAREST
-    ) -> Union[Union[np.ndarray, np.ma.masked_array], List[Union[np.ndarray, np.ma.masked_array]]]:
-        ...
-
 
 @dataclass
 class COGReader(ReaderMixin, PartialReadInterface):
@@ -73,6 +58,22 @@ class COGReader(ReaderMixin, PartialReadInterface):
 
     async def __aenter__(self):
         """Open the image and read the header"""
+        await self.open()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self._file_reader._close()
+
+    def __iter__(self):
+        """Iterate through image IFDs"""
+        for ifd in self.ifds:
+            yield ifd
+
+    async def open(self):
+        await self._open()
+
+    async def _open(self):
+        """internal method to open the cog by reading the file header"""
         async with Filesystem.create_from_filepath(self.filepath, **self.kwargs) as file_reader:
             self._file_reader = file_reader
             if (await file_reader.read(2)) == b"MM":
@@ -86,15 +87,6 @@ class COGReader(ReaderMixin, PartialReadInterface):
                 raise NotImplementedError("BigTiff is not yet supported")
             else:
                 raise InvalidTiffError("Not a valid TIFF")
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self._file_reader._close()
-
-    def __iter__(self):
-        """Iterate through image IFDs"""
-        for ifd in self.ifds:
-            yield ifd
 
     @property
     def profile(self) -> Dict[str, Any]:
@@ -123,7 +115,7 @@ class COGReader(ReaderMixin, PartialReadInterface):
         return self.ifds[0].geo_keys.epsg
 
     @property
-    def bounds(self) -> Tuple[float, float, float, float]:
+    def native_bounds(self) -> Tuple[float, float, float, float]:
         """Return the bounds of the image in native crs"""
         gt = self.geotransform()
         tlx = gt.c
@@ -131,6 +123,11 @@ class COGReader(ReaderMixin, PartialReadInterface):
         brx = tlx + (gt.a * self.ifds[0].ImageWidth.value)
         bry = tly + (gt.e * self.ifds[0].ImageHeight.value)
         return (tlx, bry, brx, tly)
+
+    @property
+    def indexes(self) -> Tuple[int]:
+        """Return rasterio style band indexes"""
+        return tuple([r + 1 for r in range(self.ifds[0].bands)])
 
     @property
     def overviews(self) -> List[int]:
@@ -279,7 +276,7 @@ class COGReader(ReaderMixin, PartialReadInterface):
         )
         # Decimate the geotransform if an overview is requested
         if ovr_level > 0:
-            bounds = self.bounds
+            bounds = self.native_bounds
             ifd = self.ifds[ovr_level]
             gt = affine.Affine.translation(bounds[0], bounds[3]) * affine.Affine.scale(
                 (bounds[2] - bounds[0]) / ifd.ImageWidth.value,
@@ -356,7 +353,7 @@ class COGReader(ReaderMixin, PartialReadInterface):
             dtype=ifd.dtype
         )
 
-        if not self._intersect_bounds(bounds, self.bounds):
+        if not self._intersect_bounds(bounds, self.native_bounds):
             raise TileNotFoundError("Partial read is outside bounds of the image")
 
         # Request those tiles
@@ -375,56 +372,6 @@ class COGReader(ReaderMixin, PartialReadInterface):
         )
 
         return postprocessed
-
-
-    async def point(self, x: Union[float, int], y: Union[float, int]) -> Union[np.ndarray, np.ma.masked_array]:
-        """Read pixel values for the given point"""
-        ifd = self.ifds[0]
-        geotransform = self.geotransform()
-        invgt = ~geotransform
-
-        # Transform request point to pixel coordinates relative to geotransform
-        image_x, image_y = invgt * (x, y)
-        xtile = math.floor((image_x + 1e-6) / ifd.TileWidth.value)
-        ytile = math.floor((image_y + 1e-6) / ifd.TileHeight.value)
-        tile = await self.get_tile(xtile, ytile, 0)
-
-        # Calculate index of pixel relative to the tile
-        xindex = int(image_x % ifd.TileWidth.value)
-        yindex = int(image_y % ifd.TileHeight.value)
-
-        return tile[:, xindex, yindex]
-
-
-    async def preview(
-        self,
-        max_size: int = 1024,
-        height: Optional[int] = None,
-        width: Optional[int] = None,
-        resample_method: int = Image.NEAREST
-    ) -> Union[np.ndarray, np.ma.masked_array]:
-        """
-        Create downsampled version of the COG
-
-        https://github.com/cogeotiff/rio-tiler/blob/master/rio_tiler/reader.py#L272-L315
-        """
-        ifd = self.ifds[0]
-        if not height and not width:
-            if max(ifd.ImageHeight.value, ifd.ImageWidth.value) < max_size:
-                height, width = ifd.ImageHeight.value, ifd.ImageWidth.value
-            else:
-                ratio = ifd.ImageHeight.value / ifd.ImageWidth.value
-                if ratio > 1:
-                    height = max_size
-                    width = math.ceil(height / ratio)
-                else:
-                    width = max_size
-                    height = math.ceil(width * ratio)
-        return await self.read(
-            bounds=self.bounds,
-            shape=(width, height),
-            resample_method=resample_method
-        )
 
 
     def create_tile_matrix_set(self, identifier: str = None) -> Dict[str, Any]:
@@ -495,24 +442,3 @@ class CompositeReader(ReaderMixin):
         )
         reducer = reducer or self.default_reducer
         return reducer(reads)
-
-    async def point(self, x: Union[float, int], y: Union[float, int], reducer: Optional[ReduceType] = None) -> List[Union[np.ndarray, np.ma.masked_array]]:
-        points = await self.map(
-            func=lambda r: r.point(x, y)
-        )
-        reducer = reducer or self.default_reducer
-        return reducer(points)
-
-    async def preview(
-        self,
-        max_size: int = 1024,
-        height: Optional[int] = None,
-        width: Optional[int] = None,
-        resample_method: int = Image.NEAREST,
-        reducer: Optional[ReduceType] = None,
-    ) -> List[Union[np.ndarray, np.ma.masked_array]]:
-        previews = await self.map(
-            func=lambda r: r.preview(max_size, height, width, resample_method)
-        )
-        reducer = reducer or self.default_reducer
-        return reducer(previews)

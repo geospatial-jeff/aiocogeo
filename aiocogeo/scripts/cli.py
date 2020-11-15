@@ -73,7 +73,7 @@ def _create_json_info(cog):
             "crs": profile['crs'],
             "origin": (profile['transform'].c, profile['transform'].f),
             "resolution": (profile['transform'].a, profile['transform'].e),
-            "bbox": cog.bounds,
+            "bbox": cog.native_bounds,
             "compression": cog.ifds[0].compression,
             "nodata": profile['nodata'],
             "internal_mask": cog.is_masked
@@ -114,7 +114,7 @@ async def info(
             {_make_bold("Crs:"):<{sep}} {profile['crs']}
             {_make_bold("Origin:"):<{sep}} ({profile['transform'].c}, {profile['transform'].f})
             {_make_bold("Resolution:"):<{sep}} ({profile['transform'].a}, {profile['transform'].e})
-            {_make_bold("BoundingBox:"):<{sep}} {cog.bounds}
+            {_make_bold("BoundingBox:"):<{sep}} {cog.native_bounds}
             {_make_bold("Compression:"):<{sep}} {cog.ifds[0].compression}
             {_make_bold("NoData:"):<{sep}} {profile['nodata']}
             {_make_bold("Internal mask:"):<{sep}} {cog.is_masked}
