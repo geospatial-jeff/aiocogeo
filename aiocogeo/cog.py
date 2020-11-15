@@ -32,10 +32,6 @@ class ReaderMixin(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def open(self):
-        ...
-
-    @abc.abstractmethod
     async def get_tile(self, x: int, y: int, z: int) -> Union[np.ndarray, List[np.ndarray]]:
         ...
 
@@ -74,10 +70,6 @@ class COGReader(ReaderMixin, PartialReadInterface):
             yield ifd
 
     async def open(self):
-        """open the cog"""
-        await self._open()
-
-    async def _open(self):
         """internal method to open the cog by reading the file header"""
         async with Filesystem.create_from_filepath(self.filepath, **self.kwargs) as file_reader:
             self._file_reader = file_reader
