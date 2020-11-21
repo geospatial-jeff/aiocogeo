@@ -16,7 +16,6 @@ from .errors import InvalidTiffError, TileNotFoundError
 from .filesystems import Filesystem
 from .ifd import IFD, ImageIFD, MaskIFD
 from .partial_reads import PartialReadInterface
-from .utils import run_in_background
 
 logger = logging.getLogger(__name__)
 logger.setLevel(config.LOG_LEVEL)
@@ -363,8 +362,7 @@ class COGReader(ReaderMixin, PartialReadInterface):
             img_arr = await self._request_tiles(img_tiles)
 
         # Postprocess the array (clip to bounds and resize to requested shape)
-        postprocessed = await run_in_background(
-            self._postprocess,
+        postprocessed = self._postprocess(
             arr=img_arr,
             img_tiles=img_tiles,
             out_shape=shape,
