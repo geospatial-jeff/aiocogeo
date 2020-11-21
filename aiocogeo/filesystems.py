@@ -40,9 +40,10 @@ def config_cache(fn: Callable) -> Callable:
     Inject cache config params (https://aiocache.readthedocs.io/en/latest/decorators.html#aiocache.cached)
     """
     def wrap_function(*args, **kwargs):
-        if kwargs['is_header'] and config.ENABLE_HEADER_CACHE:
+        is_header = kwargs.get('is_header', None)
+        if is_header and config.ENABLE_HEADER_CACHE:
             should_cache = True
-        elif config.ENABLE_BLOCK_CACHE:
+        elif config.ENABLE_BLOCK_CACHE and not is_header:
             should_cache = True
         else:
             should_cache = False
@@ -87,7 +88,7 @@ class Filesystem(abc.ABC):
         cache=Cache.MEMORY,
         key_builder=lambda fn,*args,**kwargs: f"{args[0].filepath}-{args[1]}-{args[2]}"
     )
-    async def range_request(self, start: int, offset: int, is_header: bool = True) -> bytes:
+    async def range_request(self, start: int, offset: int, **kwargs) -> bytes:
         """
         Perform and cache a range request.
         """
@@ -110,7 +111,7 @@ class Filesystem(abc.ABC):
         ...
 
 
-    async def read(self, offset: int, cast_to_int: bool = False, is_header: bool = True):
+    async def read(self, offset: int, cast_to_int: bool = False, is_header: bool = False):
         """
         Read from the current offset (self._offset) to the specified offset and optionall cast the result to int
         """
