@@ -17,9 +17,17 @@ INGESTED_BYTES_AT_OPEN: int = os.getenv("INGESTED_BYTES_AT_OPEN", 16384)
 
 # https://trac.osgeo.org/gdal/wiki/ConfigOptions#VSI_CACHE
 # Determines if in-memory block caching is enabled
-ENABLE_CACHE: bool = True if os.getenv(
-    "ENABLE_CACHE", "TRUE"
+ENABLE_BLOCK_CACHE: bool = True if os.getenv(
+    "ENABLE_BLOCK_CACHE", "TRUE"
 ).upper() == "TRUE" else False
+
+
+# enable caching of header requests, similar to GDAL's VSI CACHE
+# https://trac.osgeo.org/gdal/wiki/ConfigOptions#VSI_CACHE
+ENABLE_HEADER_CACHE: bool = True if os.getenv(
+    "ENABLE_HEADER_CACHE", "TRUE"
+).upper() == "TRUE" else False
+
 
 # https://trac.osgeo.org/gdal/wiki/ConfigOptions#GDAL_HTTP_MERGE_CONSECUTIVE_RANGES
 # Determines if consecutive range requests are merged into a single request, reducing the number of HTTP GET range

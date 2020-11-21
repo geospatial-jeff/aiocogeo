@@ -83,7 +83,7 @@ class Tag(BaseTag):
             end_of_tag = reader.tell()
             if value_offset + length > INGESTED_BYTES_AT_OPEN:
                 # Increment header size if more data is read
-                data = await reader.range_request(value_offset, length - 1)
+                data = await reader.range_request(value_offset, length - 1, is_header=True)
                 reader._header_size += length
             else:
                 reader.seek(value_offset)
