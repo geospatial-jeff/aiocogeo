@@ -85,9 +85,12 @@ class Tag(BaseTag):
             end_of_tag = reader.tell()
 
             # read more data if we need to
-            # TODO: this will fail if chunks size is smaller than the tag value
-            if value_offset + length > len(reader.data):
-                reader.data += await reader.range_request(len(reader.data), HEADER_CHUNK_SIZE, is_header=True)
+            current_size = len(reader.data)
+            if value_offset + length > current_size:
+
+                # we coerce the chunk size to be at least the size of the tag
+                chunk_size = max(value_offset + length - current_size, HEADER_CHUNK_SIZE)
+                reader.data += await reader.range_request(len(reader.data), chunk_size, is_header=True)
 
             # read the tag value
             reader.seek(value_offset)
