@@ -4,13 +4,13 @@ import struct
 
 from typing import Any, Optional, Tuple, Union
 
-from .config import HEADER_CHUNK_SIZE, LOG_LEVEL
+from . import config
 from .constants import GEO_KEYS, TIFF_TAGS
 from .filesystems import Filesystem
 
 
 logger = logging.getLogger(__name__)
-logger.setLevel(LOG_LEVEL)
+logger.setLevel(config.LOG_LEVEL)
 
 
 @dataclass
@@ -89,7 +89,7 @@ class Tag(BaseTag):
             if value_offset + length > current_size:
 
                 # we coerce the chunk size to be at least the size of the tag
-                chunk_size = max(value_offset + length - current_size, HEADER_CHUNK_SIZE)
+                chunk_size = max(value_offset + length - current_size, config.HEADER_CHUNK_SIZE)
                 reader.data += await reader.range_request(len(reader.data), chunk_size, is_header=True)
 
             # read the tag value
