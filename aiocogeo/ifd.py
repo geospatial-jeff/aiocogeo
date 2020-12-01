@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass
 import math
 from typing import Dict, Optional, Tuple, Union
@@ -38,9 +39,12 @@ class IFD:
         tag_count = await file_reader.read(2, cast_to_int=True)
         tiff_tags = {}
 
-        # Read tags
-        for idx in range(tag_count):
-            tag = await Tag.read(file_reader)
+        tags = await asyncio.gather(
+            *[
+                Tag.read(file_reader) for _ in range(tag_count)
+            ]
+        )
+        for tag in tags:
             if tag:
                 tiff_tags[tag.name] = tag
         file_reader.seek(ifd_start + (12 * tag_count) + 2)
