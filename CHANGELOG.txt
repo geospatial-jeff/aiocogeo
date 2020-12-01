@@ -1,3 +1,12 @@
+0.3.0 (2020-11-30)
+------------------
+- Remove unnecessary calls to the thread pool (#89)
+- Add header cache (#90)
+   - Renames the `ENABLE_CACHE` environment variable to `ENABLE_BLOCK_CACHE`.
+   - Adds the `ENABLE_HEADER_CACHE` environment variable.
+- Restructure test cases (#91)
+- Parallelize reading of tiff tags (#92)
+
 0.2.7 (2020-11-15)
 ------------------
 - Add `CompositeReader` and `STACReader` (#70)
