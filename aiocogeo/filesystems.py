@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 import json
 import logging
 import time
-from typing import Any, Callable, Dict, Union
+from typing import Callable, Dict
 from urllib.parse import urlsplit
 
 from aiocache import cached, Cache
@@ -40,7 +40,14 @@ def config_cache(fn: Callable) -> Callable:
     Inject cache config params (https://aiocache.readthedocs.io/en/latest/decorators.html#aiocache.cached)
     """
     def wrap_function(*args, **kwargs):
-        kwargs['cache_read'] = kwargs['cache_write'] = config.ENABLE_CACHE
+        is_header = kwargs.get('is_header', None)
+        if is_header and config.ENABLE_HEADER_CACHE:
+            should_cache = True
+        elif config.ENABLE_BLOCK_CACHE and not is_header:
+            should_cache = True
+        else:
+            should_cache = False
+        kwargs['cache_read'] = kwargs['cache_write'] = should_cache
         return fn(*args, **kwargs)
     return wrap_function
 
@@ -81,7 +88,7 @@ class Filesystem(abc.ABC):
         cache=Cache.MEMORY,
         key_builder=lambda fn,*args,**kwargs: f"{args[0].filepath}-{args[1]}-{args[2]}"
     )
-    async def range_request(self, start: int, offset: int) -> bytes:
+    async def range_request(self, start: int, offset: int, **kwargs) -> bytes:
         """
         Perform and cache a range request.
         """
@@ -104,12 +111,12 @@ class Filesystem(abc.ABC):
         ...
 
 
-    async def read(self, offset: int, cast_to_int: bool = False):
+    async def read(self, offset: int, cast_to_int: bool = False, is_header: bool = False):
         """
         Read from the current offset (self._offset) to the specified offset and optionall cast the result to int
         """
         if self._offset + offset > len(self.data):
-            self.data += await self.range_request(len(self.data), config.INGESTED_BYTES_AT_OPEN)
+            self.data += await self.range_request(len(self.data), config.INGESTED_BYTES_AT_OPEN, is_header=is_header)
         data = self.data[self._offset : self._offset + offset]
         self.incr(offset)
         order = "little" if self._endian == "<" else "big"

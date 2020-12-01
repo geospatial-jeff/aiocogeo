@@ -495,11 +495,11 @@ async def test_cog_metadata_iter(infile, create_cog_reader):
             for tag in ifd:
                 assert isinstance(tag, BaseTag)
 
-
+#
 @pytest.mark.asyncio
 async def test_block_cache_enabled(create_cog_reader, monkeypatch):
     # Cache is disabled for tests
-    monkeypatch.setattr(config, "ENABLE_CACHE", True)
+    monkeypatch.setattr(config, "ENABLE_BLOCK_CACHE", True)
     infile = "https://async-cog-reader-test-data.s3.amazonaws.com/lzw_cog.tif"
     async with create_cog_reader(infile) as cog:
         await cog.get_tile(0, 0, 0)
@@ -507,7 +507,7 @@ async def test_block_cache_enabled(create_cog_reader, monkeypatch):
     async with create_cog_reader(infile) as cog:
         await cog.get_tile(0, 0, 0)
         # Confirm all requests are cached
-        assert cog.requests["count"] == 0
+        assert cog.requests["count"] == 18
 
 
 @pytest.mark.asyncio
@@ -519,6 +519,33 @@ async def test_block_cache_disabled(create_cog_reader):
 
         await cog.get_tile(0, 0, 0)
         assert cog.requests["count"] == request_count + 1
+
+
+@pytest.mark.asyncio
+async def test_header_cache_enabled(create_cog_reader, monkeypatch):
+    # Cache is disabled for tests
+    monkeypatch.setattr(config, "ENABLE_HEADER_CACHE", True)
+    infile = "https://async-cog-reader-test-data.s3.amazonaws.com/webp_cog.tif"
+    async with create_cog_reader(infile) as cog:
+        assert cog.requests["count"] == 20
+
+    async with create_cog_reader(infile) as cog:
+        assert cog.requests["count"] == 2
+
+    async with create_cog_reader(infile) as cog:
+        await cog.get_tile(0, 0, 0)
+        assert cog.requests["count"] == 3
+
+
+@pytest.mark.asyncio
+async def test_header_cache_disabled(create_cog_reader):
+    infile = "https://async-cog-reader-test-data.s3.amazonaws.com/webp_cog.tif"
+    async with create_cog_reader(infile) as cog:
+        assert cog.requests["count"] == 20
+
+    async with create_cog_reader(infile) as cog:
+        assert cog.requests["count"] == 20
+
 
 
 @pytest.mark.asyncio
@@ -559,9 +586,9 @@ async def test_file_not_found(create_cog_reader, infile):
 
 
 @pytest.mark.asyncio
-async def test_inject_session():
+async def test_inject_session(create_cog_reader):
     async with aiohttp.ClientSession() as session:
-        async with COGReader(
+        async with create_cog_reader(
             "https://async-cog-reader-test-data.s3.amazonaws.com/webp_cog.tif",
             kwargs={"session": session},
         ):
