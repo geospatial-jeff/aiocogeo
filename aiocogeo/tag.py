@@ -56,7 +56,6 @@ class Tag(BaseTag):
     async def read(cls, reader: Filesystem) -> Optional["Tag"]:
         """Read a TIFF Tag"""
         # 0-2 bytes of tag are tag name
-        # reader.seek(offset)
         code = await reader.read(2, cast_to_int=True)
         if code not in TIFF_TAGS:
             logger.warning(f"TIFF TAG {code} is not supported.")
@@ -64,14 +63,11 @@ class Tag(BaseTag):
             return None
         name = TIFF_TAGS[code]
         # 2-4 bytes are field type
-        # reader.seek(offset+2)
         field_type = TAG_TYPES[(await reader.read(2, cast_to_int=True))]
         # 4-8 bytes are number of values
-        # reader.seek(offset+4)
         count = await reader.read(4, cast_to_int=True)
         length = field_type.size * count
         if length <= 4:
-            # reader.seek(offset+6+length)
             data = await reader.read(length)
             value = struct.unpack(f"{reader._endian}{count}{field_type.format}", data)
             reader.incr(4 - length)
@@ -83,7 +79,6 @@ class Tag(BaseTag):
                 value = [[int(x) for x in str(int(bit32)).zfill(3)]]
 
         else:
-            # reader.seek(offset+8)
             value_offset = await reader.read(4, cast_to_int=True)
             end_of_tag = reader.tell()
             if value_offset + length > INGESTED_BYTES_AT_OPEN:
