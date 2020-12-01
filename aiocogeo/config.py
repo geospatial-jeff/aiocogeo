@@ -15,6 +15,9 @@ VERBOSE_LOGS: bool = False if os.getenv("VERBOSE_LOGS", "FALSE") == "FALSE" else
 # Can help performance when reading images with a large header
 INGESTED_BYTES_AT_OPEN: int = os.getenv("INGESTED_BYTES_AT_OPEN", 16384)
 
+# Defines the chunk size used for additional GET requests required to read the header
+HEADER_CHUNK_SIZE: int = os.getenv("HEADER_CHUNK_SIZE", 16384)
+
 # https://trac.osgeo.org/gdal/wiki/ConfigOptions#VSI_CACHE
 # Determines if in-memory block caching is enabled
 ENABLE_BLOCK_CACHE: bool = True if os.getenv(

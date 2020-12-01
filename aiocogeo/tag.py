@@ -4,7 +4,7 @@ import struct
 
 from typing import Any, Optional, Tuple, Union
 
-from .config import INGESTED_BYTES_AT_OPEN, LOG_LEVEL
+from .config import HEADER_CHUNK_SIZE, LOG_LEVEL
 from .constants import GEO_KEYS, TIFF_TAGS
 from .filesystems import Filesystem
 
@@ -85,9 +85,9 @@ class Tag(BaseTag):
             end_of_tag = reader.tell()
 
             # read more data if we need to
-            # TODO: dedup with `Filesystem.read`
+            # TODO: this will fail if chunks size is smaller than the tag value
             if value_offset + length > len(reader.data):
-                reader.data += await reader.range_request(len(reader.data), INGESTED_BYTES_AT_OPEN, is_header=True)
+                reader.data += await reader.range_request(len(reader.data), HEADER_CHUNK_SIZE, is_header=True)
 
             # read the tag value
             reader.seek(value_offset)

@@ -36,14 +36,14 @@ class IFD:
     async def read(cls, file_reader: Filesystem) -> Union["ImageIFD", "MaskIFD"]:
         """Read the IFD"""
         ifd_start = file_reader.tell()
-        tag_count = await file_reader.read(2, cast_to_int=True, is_header=True)
+        tag_count = await file_reader.read(2, cast_to_int=True)
         tiff_tags = {}
         for idx in range(tag_count):
             tag = await Tag.read(file_reader)
             if tag:
                 tiff_tags[tag.name] = tag
         file_reader.seek(ifd_start + (12 * tag_count) + 2)
-        next_ifd_offset = await file_reader.read(4, cast_to_int=True, is_header=True)
+        next_ifd_offset = await file_reader.read(4, cast_to_int=True)
 
         if 'GeoKeyDirectoryTag' in tiff_tags:
             tiff_tags['geo_keys'] = GeoKeyDirectory.read(tiff_tags['GeoKeyDirectoryTag'])

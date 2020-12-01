@@ -63,7 +63,7 @@ class Filesystem(abc.ABC):
         self._endian: str = "<"
         self._total_bytes_requested: int = 0
         self._total_requests: int = 0
-        self._header_size: int = config.INGESTED_BYTES_AT_OPEN
+        self._header_size: int = 0
         self._requested_ranges = []
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -92,7 +92,10 @@ class Filesystem(abc.ABC):
         """
         Perform and cache a range request.
         """
-        return await self._range_request(start, offset)
+        resp = await self._range_request(start, offset)
+        if kwargs.get('is_header', False):
+            self._header_size += len(resp)
+        return resp
 
     @abc.abstractmethod
     async def request_json(self):
@@ -111,12 +114,10 @@ class Filesystem(abc.ABC):
         ...
 
 
-    async def read(self, offset: int, cast_to_int: bool = False, is_header: bool = False):
+    async def read(self, offset: int, cast_to_int: bool = False):
         """
-        Read from the current offset (self._offset) to the specified offset and optionall cast the result to int
+        Read from the current offset (self._offset) to the specified offset and optionally cast the result to int
         """
-        if self._offset + offset > len(self.data):
-            self.data += await self.range_request(len(self.data), config.INGESTED_BYTES_AT_OPEN, is_header=is_header)
         data = self.data[self._offset : self._offset + offset]
         self.incr(offset)
         order = "little" if self._endian == "<" else "big"
