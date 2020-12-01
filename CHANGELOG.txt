@@ -1,7 +1,7 @@
 0.3.0 (2020-11-30)
 ------------------
 - Remove unnecessary calls to the thread pool (#89)
-- Add header cache (#90)
+- Add header cache (#90, #93)
    - Renames the `ENABLE_CACHE` environment variable to `ENABLE_BLOCK_CACHE`.
    - Adds the `ENABLE_HEADER_CACHE` environment variable.
 - Restructure test cases (#91)
