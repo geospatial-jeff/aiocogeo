@@ -55,7 +55,6 @@ class Tag(BaseTag):
     @classmethod
     async def read(cls, reader: Filesystem) -> Optional["Tag"]:
         """Read a TIFF Tag"""
-        # reader.seek(offset)
         # 0-2 bytes of tag are tag name
         code = await reader.read(2, cast_to_int=True)
         if code not in TIFF_TAGS:
@@ -88,7 +87,7 @@ class Tag(BaseTag):
             current_size = len(reader.data)
             if value_offset + length > current_size:
 
-                # we coerce the chunk size to be at least the size of the tag
+                # we coerce the chunk size to be big enough to read the full tag value
                 chunk_size = max(value_offset + length - current_size, config.HEADER_CHUNK_SIZE)
                 reader.data += await reader.range_request(len(reader.data), chunk_size, is_header=True)
 
