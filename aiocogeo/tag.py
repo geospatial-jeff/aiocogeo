@@ -84,31 +84,16 @@ class Tag(BaseTag):
             value_offset = await reader.read(4, cast_to_int=True)
             end_of_tag = reader.tell()
 
+            # read more data if we need to
+            # TODO: dedup with `Filesystem.read`
             if value_offset + length > len(reader.data):
                 reader.data += await reader.range_request(len(reader.data), INGESTED_BYTES_AT_OPEN, is_header=True)
 
+            # read the tag value
             reader.seek(value_offset)
             data = await reader.read(length)
-
-
-
-
-            # await reader.read(value_offset + length - reader.tell())
-            # reader.seek(value_offset)
-            # data = await reader.read(length)
-
-
-
-            # value_offset = await reader.read(4, cast_to_int=True)
-            # end_of_tag = reader.tell()
-            # if value_offset + length > INGESTED_BYTES_AT_OPEN:
-            #     # Increment header size if more data is read
-            #     data = await reader.range_request(value_offset, length - 1, is_header=True)
-            #     reader._header_size += length
-            # else:
-            #     reader.seek(value_offset)
-            #     data = await reader.read(length)
             value = struct.unpack(f"{reader._endian}{count}{field_type.format}", data)
+
             reader.seek(end_of_tag)
         value = value[0] if count == 1 else value
 
