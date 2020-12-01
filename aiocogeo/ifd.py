@@ -38,14 +38,8 @@ class IFD:
         ifd_start = file_reader.tell()
         tag_count = await file_reader.read(2, cast_to_int=True, is_header=True)
         tiff_tags = {}
-
-        tags = await asyncio.gather(
-            *[
-                Tag.read(file_reader, offset=ifd_start + (12 * idx) + 2)
-                for idx in range(tag_count)
-            ]
-        )
-        for tag in tags:
+        for idx in range(tag_count):
+            tag = await Tag.read(file_reader)
             if tag:
                 tiff_tags[tag.name] = tag
         file_reader.seek(ifd_start + (12 * tag_count) + 2)

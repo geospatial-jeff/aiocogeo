@@ -53,9 +53,9 @@ class Tag(BaseTag):
         return self.count
 
     @classmethod
-    async def read(cls, reader: Filesystem, offset: int) -> Optional["Tag"]:
+    async def read(cls, reader: Filesystem) -> Optional["Tag"]:
         """Read a TIFF Tag"""
-        reader.seek(offset)
+        # reader.seek(offset)
         # 0-2 bytes of tag are tag name
         code = await reader.read(2, cast_to_int=True)
         if code not in TIFF_TAGS:
@@ -80,15 +80,34 @@ class Tag(BaseTag):
                 value = [[int(x) for x in str(int(bit32)).zfill(3)]]
 
         else:
+            # value is elsewhere in the file, `value_offset` tells us where it is
             value_offset = await reader.read(4, cast_to_int=True)
             end_of_tag = reader.tell()
-            if value_offset + length > INGESTED_BYTES_AT_OPEN:
-                # Increment header size if more data is read
-                data = await reader.range_request(value_offset, length - 1, is_header=True)
-                reader._header_size += length
-            else:
-                reader.seek(value_offset)
-                data = await reader.read(length)
+
+            if value_offset + length > len(reader.data):
+                reader.data += await reader.range_request(len(reader.data), INGESTED_BYTES_AT_OPEN, is_header=True)
+
+            reader.seek(value_offset)
+            data = await reader.read(length)
+
+
+
+
+            # await reader.read(value_offset + length - reader.tell())
+            # reader.seek(value_offset)
+            # data = await reader.read(length)
+
+
+
+            # value_offset = await reader.read(4, cast_to_int=True)
+            # end_of_tag = reader.tell()
+            # if value_offset + length > INGESTED_BYTES_AT_OPEN:
+            #     # Increment header size if more data is read
+            #     data = await reader.range_request(value_offset, length - 1, is_header=True)
+            #     reader._header_size += length
+            # else:
+            #     reader.seek(value_offset)
+            #     data = await reader.read(length)
             value = struct.unpack(f"{reader._endian}{count}{field_type.format}", data)
             reader.seek(end_of_tag)
         value = value[0] if count == 1 else value
