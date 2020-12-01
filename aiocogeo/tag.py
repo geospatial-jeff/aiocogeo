@@ -53,8 +53,9 @@ class Tag(BaseTag):
         return self.count
 
     @classmethod
-    async def read(cls, reader: Filesystem) -> Optional["Tag"]:
+    async def read(cls, reader: Filesystem, offset: int) -> Optional["Tag"]:
         """Read a TIFF Tag"""
+        reader.seek(offset)
         # 0-2 bytes of tag are tag name
         code = await reader.read(2, cast_to_int=True)
         if code not in TIFF_TAGS:

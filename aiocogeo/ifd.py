@@ -41,7 +41,8 @@ class IFD:
 
         tags = await asyncio.gather(
             *[
-                Tag.read(file_reader) for _ in range(tag_count)
+                Tag.read(file_reader, offset=ifd_start + (12 * idx) + 2)
+                for idx in range(tag_count)
             ]
         )
         for tag in tags:
