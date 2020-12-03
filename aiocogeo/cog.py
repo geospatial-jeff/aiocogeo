@@ -75,11 +75,13 @@ class COGReader(ReaderMixin, PartialReadInterface):
         """internal method to open the cog by reading the file header"""
         async with Filesystem.create_from_filepath(self.filepath, **self.kwargs) as file_reader:
             self._file_reader = file_reader
-            if (await file_reader.read(2, is_header=True)) == b"MM":
+            # Do the first request
+            self._file_reader.data += await self._file_reader.range_request(0, config.INGESTED_BYTES_AT_OPEN, is_header=True)
+            if (await file_reader.read(2)) == b"MM":
                 file_reader._endian = ">"
-            version = await file_reader.read(2, cast_to_int=True, is_header=True)
+            version = await file_reader.read(2, cast_to_int=True)
             if version == 42:
-                first_ifd = await file_reader.read(4, cast_to_int=True, is_header=True)
+                first_ifd = await file_reader.read(4, cast_to_int=True)
                 file_reader.seek(first_ifd)
                 await self._read_header()
             elif version == 43:

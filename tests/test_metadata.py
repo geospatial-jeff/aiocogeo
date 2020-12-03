@@ -3,6 +3,7 @@ from morecantile.models import TileMatrixSet
 import pytest
 import rasterio
 
+from aiocogeo import config
 from aiocogeo.ifd import IFD
 from aiocogeo.tag import BaseTag
 from aiocogeo.errors import InvalidTiffError
@@ -169,3 +170,19 @@ async def test_file_not_found(create_cog_reader, infile):
     with pytest.raises(FileNotFoundError):
         async with create_cog_reader(infile) as cog:
             ...
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "chunk_size,request_count,header_size", [
+        [16384, 2, 32770],
+        [4096, 4, 28769],
+        [100, 14, 26776]
+    ]
+)
+async def test_chunk_size(chunk_size, request_count, header_size, monkeypatch, create_cog_reader):
+    monkeypatch.setattr(config, "HEADER_CHUNK_SIZE", chunk_size)
+    async with create_cog_reader("https://async-cog-reader-test-data.s3.amazonaws.com/webp_cog.tif") as cog:
+        requests = cog.requests
+        assert requests['count'] == request_count
+        assert requests['header_size'] == header_size

@@ -134,6 +134,7 @@ async with COGReader("https://async-cog-reader-test-data.s3.amazonaws.com/naip_i
 ### Configuration
 Configuration options are exposed through environment variables:
 - **INGESTED_BYTES_AT_OPEN** - defines the number of bytes in the first GET request at file opening (defaults to 16KB)
+- **HEADER_CHUNK_SIZE** - chunk size used to read header (defaults to 16KB)
 - **ENABLE_BLOCK_CACHE** - determines if image blocks are cached in memory (defaults to TRUE)
 - **ENABLE_HEADER_CACHE** - determines if COG headers are cached in memory (defaults to TRUE)
 - **HTTP_MERGE_CONSECUTIVE_RANGES** - determines if consecutive ranges are merged into a single request (defaults to FALSE)
