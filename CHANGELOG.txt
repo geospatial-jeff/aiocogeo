@@ -6,6 +6,7 @@
    - Adds the `ENABLE_HEADER_CACHE` environment variable.
 - Restructure test cases (#91)
 - Implement chunking and smarter tag reading to reduce number of requests sent when reading the header (#95)
+   - Adds the `HEADER_CHUNK_SIZE` environment variable (defaults to 16KB).
 
 0.2.7 (2020-11-15)
 ------------------
