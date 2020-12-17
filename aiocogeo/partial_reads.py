@@ -119,18 +119,9 @@ class PartialReadBase(abc.ABC):
         )
         target_res = target_gt.a
 
-        ovr_level = 0
-        if target_res > src_res:
-            # Decimated resolution at each overview
-            overviews = [src_res * decim for decim in self.overviews]
-            for ovr_level in range(ovr_level, len(overviews) - 1):
-                ovr_res = src_res if ovr_level == 0 else overviews[ovr_level]
-                if (ovr_res < target_res) and (overviews[ovr_level + 1] > target_res):
-                    break
-                if abs(ovr_res - target_res) < 1e-1:
-                    break
-            else:
-                ovr_level = len(overviews) - 1
+        # Choose overview level whose resolution is closest to the target resolution
+        available_resolutions = np.array([src_res] + [src_res * decim for decim in self.overviews])
+        ovr_level = np.argmin(np.abs(available_resolutions - target_res))
 
         return ovr_level
 
