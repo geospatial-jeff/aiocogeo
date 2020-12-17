@@ -31,6 +31,8 @@ jobs:
 
       # Run tox using the version of Python in `PATH`
       - name: Run Tox
+        env:
+          CURL_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
         run: tox -e py
 
       - name: Upload Results
