@@ -1,4 +1,8 @@
-# aiocogeo [![CircleCI](https://circleci.com/gh/geospatial-jeff/aiocogeo/tree/master.svg?style=svg)](https://circleci.com/gh/geospatial-jeff/aiocogeo/tree/master)[![codecov](https://codecov.io/gh/geospatial-jeff/aiocogeo/branch/master/graph/badge.svg)](https://codecov.io/gh/geospatial-jeff/aiocogeo)
+# aiocogeo
+[![GHA](https://github.com/geospatial-jeff/aiocogeo/workflows/CI/badge.svg)](https://github.com/geospatial-jeff/aiocogeo/actions?query=workflow%3ACI)
+[![codecov](https://codecov.io/gh/geospatial-jeff/aiocogeo/branch/master/graph/badge.svg)](https://codecov.io/gh/geospatial-jeff/aiocogeo)
+[![pypi](https://img.shields.io/pypi/v/aiocogeo?color=%2334D058&label=pypi%20package)](https://pypi.org/project/aiocogeo)
+[![license](https://img.shields.io/github/license/geospatial-jeff/aiocogeo.svg)](https://github.com/geospatial-jeff/aiocogeo/blob/master/LICENSE)
 
 ## Installation
 ```
@@ -90,7 +94,7 @@ Reading the top left tile of an image at native resolution:
 async with COGReader("https://async-cog-reader-test-data.s3.amazonaws.com/webp_cog.tif") as cog:
     x = y = z = 0
     tile = await cog.get_tile(x, y, z)
-    
+
     ifd = cog.ifds[z]
     assert tile.shape == (ifd.bands, ifd.TileHeight.value, ifd.TileWidth.value)
 ```
@@ -128,7 +132,7 @@ async with COGReader("https://async-cog-reader-test-data.s3.amazonaws.com/naip_i
 
 <p align="center">
   <img src="https://async-cog-reader-test-data.s3.amazonaws.com/readme/masked_tile.jpg" width="300" />
-  <img src="https://async-cog-reader-test-data.s3.amazonaws.com/readme/mask.jpg" width="300" /> 
+  <img src="https://async-cog-reader-test-data.s3.amazonaws.com/readme/mask.jpg" width="300" />
 </p>
 
 ### Configuration
