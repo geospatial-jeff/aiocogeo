@@ -119,7 +119,7 @@ class PartialReadBase(abc.ABC):
         )
         target_res = target_gt.a
 
-        # Choose overview level whose resolution is closest to the target resolution
+        # Choose overview whose res is closest to the target res. This can lead to downsampling or upsampling.
         available_resolutions = np.array([src_res] + [src_res * decim for decim in self.overviews])
         ovr_level = np.argmin(np.abs(available_resolutions - target_res))
 
@@ -271,7 +271,7 @@ class PartialReadBase(abc.ABC):
         if self._add_mask:
             mask = Image.fromarray(clipped.mask[0,...])
             resized_mask = np.array(mask.resize((out_shape[0], out_shape[1]), resample=Image.BILINEAR))
-            resized_mask = np.stack((resized_mask for _ in range(img_tiles.bands)))
+            resized_mask = np.stack([resized_mask for _ in range(img_tiles.bands)])
             resized = np.ma.masked_array(resized, resized_mask)
         return resized
 
