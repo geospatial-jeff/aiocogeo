@@ -314,7 +314,7 @@ async def test_boundless_read_fill_value(create_cog_reader, monkeypatch):
         # Count number of pixels with a value of 1
         tile = await cog.read(bounds=bounds, shape=(256, 256))
         counts = dict(zip(*np.unique(tile, return_counts=True)))
-        assert counts[1] == 351
+        assert counts[1] == 713
 
         # Set fill value of 1
         monkeypatch.setattr(config, "BOUNDLESS_READ_FILL_VALUE", 1)
@@ -322,7 +322,7 @@ async def test_boundless_read_fill_value(create_cog_reader, monkeypatch):
         # Count number of pixels with a value of 1
         tile = await cog.read(bounds=bounds, shape=(256, 256))
         counts = dict(zip(*np.unique(tile, return_counts=True)))
-        assert counts[1] == 167583
+        assert counts[1] == 154889
 
 
 @pytest.mark.asyncio
@@ -353,20 +353,15 @@ async def test_read_not_in_bounds(create_cog_reader, infile):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "width,height", [(500, 500), (1000, 1000), (5000, 5000), (10000, 10000)]
+    "width,height,expected_ovr", [(500, 500, 4), (1000, 1000, 3), (5000, 5000, 1), (10000, 10000, 0)]
 )
-async def test_cog_get_overview_level(create_cog_reader, width, height):
+async def test_cog_get_overview_level(create_cog_reader, width, height, expected_ovr):
+    # available resolutions: [ 0.6,  1.2,  2.4,  4.8,  9.6, 19.2, 38.4]
+    # target resolutions: [12.336 ,  6.168 ,  1.2336,  0.6168]
+    # `expected_ovr` is index of available resolution that most closely matches the target resolution
     async with create_cog_reader(TEST_DATA[0]) as cog:
         ovr = cog._get_overview_level(cog.native_bounds, width, height)
-
-        with rasterio.open(TEST_DATA[0]) as src:
-            expected_ovr = rio_tiler_utils.get_overview_level(
-                src, src.bounds, height, width
-            )
-            # Our index for source data is 0 while rio tiler uses -1
-            expected_ovr = 0 if expected_ovr == -1 else expected_ovr
-            assert ovr == expected_ovr
-
+        assert ovr == expected_ovr
 
 @pytest.mark.asyncio
 async def test_inject_session(create_cog_reader):
