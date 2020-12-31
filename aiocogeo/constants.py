@@ -213,9 +213,3 @@ class MaskFlags(enum.IntEnum):
     per_dataset = 2
     alpha = 4
     nodata = 8
-
-class ZoomLevelStrategies(enum.Enum):
-    AUTO = "AUTO"
-    LOWER = "LOWER"
-    UPPER = "UPPER"
-    UPPERAPPROX = "UPPERAPPROX"

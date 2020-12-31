@@ -1,5 +1,4 @@
 """COG mixins for partial reads"""
-from aiocogeo.constants import ZoomLevelStrategies
 import asyncio
 import abc
 from dataclasses import dataclass
@@ -123,6 +122,7 @@ class PartialReadBase(abc.ABC):
 
         available_resolutions = [src_res] + [src_res * decim for decim in self.overviews]
         percentage = int({"AUTO": 50, "LOWER": 100, "UPPER": 0}.get(config.ZOOM_LEVEL_STRATEGY, config.ZOOM_LEVEL_STRATEGY))
+        assert 0 <= percentage <= 100
         # Iterate over zoom levels from lowest/coarsest to highest/finest. If the `target_res` is more than `percentage`
         # percent of the way from the zoom level below to the zoom level above, then upsample the zoom level below, else
         # downsample the zoom level above.

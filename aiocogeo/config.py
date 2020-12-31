@@ -2,7 +2,6 @@
 import logging
 import os
 
-from .constants import ZoomLevelStrategies
 
 # Changes the log level
 LOG_LEVEL: str = os.getenv("LOG_LEVEL", "ERROR")
