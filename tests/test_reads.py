@@ -355,15 +355,15 @@ async def test_read_not_in_bounds(create_cog_reader, infile):
 @pytest.mark.parametrize(
     "width,height,strategy,expected_ovr", [
         # 100x100 has target res of 61.68 which is lower than even the lowest zoom level
-        (100, 100, "AUTO", 6), (100, 100, "LOWER", 6), (100, 100, "UPPER", 6), (100, 100, "UPPERAPPROX", 6),
+        (100, 100, "AUTO", 6), (100, 100, "LOWER", 6), (100, 100, "UPPER", 6), (100, 100, "1", 6),
         # 1284x1284 has target res of 4.803 which is *barely* below the 3rd overview
-        (1284, 1284, "AUTO", 3), (1284, 1284, "LOWER", 4), (1284, 1284, "UPPER", 3), (1284, 1284, "UPPERAPPROX", 3),
+        (1284, 1284, "AUTO", 3), (1284, 1284, "LOWER", 4), (1284, 1284, "UPPER", 3), (1284, 1284, "1", 3),
         # 1285x1285 has target res of 4.8 which is exactly the 3rd overview
-        (1285, 1285, "AUTO", 3), (1285, 1285, "LOWER", 3), (1285, 1285, "UPPER", 3), (1285, 1285, "UPPERAPPROX", 3),
-        # 1286x1286 has target res of 4.796 which is *barely* above the 3rd overview; exercises UPPERAPPROX use case
-        (1286, 1286, "AUTO", 3), (1286, 1286, "LOWER", 3), (1286, 1286, "UPPER", 2), (1286, 1286, "UPPERAPPROX", 3),
+        (1285, 1285, "AUTO", 3), (1285, 1285, "LOWER", 3), (1285, 1285, "UPPER", 3), (1285, 1285, "1", 3),
+        # 1286x1286 has target res of 4.796 which is *barely* above the 3rd overview; exercises custom percentage use case
+        (1286, 1286, "AUTO", 3), (1286, 1286, "LOWER", 3), (1286, 1286, "UPPER", 2), (1286, 1286, "1", 3),
         # 20000x20000 has target res of 0.3084 which is higher than even the highest zoom level
-        (20000, 20000, "AUTO", 0), (20000, 20000, "LOWER", 0), (20000, 20000, "UPPER", 0), (20000, 20000, "UPPERAPPROX", 0),
+        (20000, 20000, "AUTO", 0), (20000, 20000, "LOWER", 0), (20000, 20000, "UPPER", 0), (20000, 20000, "1", 0),
     ]
 )
 async def test_cog_get_overview_level(create_cog_reader, width, height, strategy, expected_ovr, monkeypatch):

@@ -121,23 +121,19 @@ class PartialReadBase(abc.ABC):
         )
         target_res = target_gt.a
 
-        available_resolutions = np.array([src_res] + [src_res * decim for decim in self.overviews])
-        if config.ZOOM_LEVEL_STRATEGY == ZoomLevelStrategies.AUTO.value:
-            preferred_resolutions = available_resolutions > 0.0
-        elif config.ZOOM_LEVEL_STRATEGY == ZoomLevelStrategies.LOWER.value:
-            preferred_resolutions = available_resolutions >= target_res
-        elif config.ZOOM_LEVEL_STRATEGY == ZoomLevelStrategies.UPPER.value:
-            preferred_resolutions = available_resolutions <= target_res
-        elif config.ZOOM_LEVEL_STRATEGY == ZoomLevelStrategies.UPPERAPPROX.value:
-            preferred_resolutions = available_resolutions <= target_res * 1.01
-        else:
-            raise ValueError(f'Invalid zoom level strategy "{config.ZOOM_LEVEL_STRATEGY}"; must be one of {sorted(ZoomLevelStrategies.__members__.keys())}')
-        res_deltas = np.abs(available_resolutions - target_res)
-        if preferred_resolutions.any():  # needed if e.g. target_res lower than lowest zoom and LOWER strategy used
-            res_deltas[~preferred_resolutions] = np.inf
-        ovr_level = np.argmin(res_deltas)
+        available_resolutions = [src_res] + [src_res * decim for decim in self.overviews]
+        percentage = int({"AUTO": 50, "LOWER": 100, "UPPER": 0}.get(config.ZOOM_LEVEL_STRATEGY, config.ZOOM_LEVEL_STRATEGY))
+        # Iterate over zoom levels from lowest/coarsest to highest/finest. If the `target_res` is more than `percentage`
+        # percent of the way from the zoom level below to the zoom level above, then upsample the zoom level below, else
+        # downsample the zoom level above.
+        for i in reversed(range(1, len(available_resolutions))):
+            res_current = available_resolutions[i]
+            res_higher = available_resolutions[i - 1]
+            threshold = res_current - (res_current - res_higher) * (percentage / 100.0)
+            if target_res > threshold or target_res == res_current:
+                return i
 
-        return ovr_level
+        return 0
 
     def _calculate_image_tiles(
         self,

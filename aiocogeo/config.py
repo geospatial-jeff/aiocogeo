@@ -60,5 +60,3 @@ AWS_REQUEST_PAYER: str = os.getenv(
 
 # Mimics GDAL COG `ZOOM_LEVEL_STRATEGY`: https://gdal.org/drivers/raster/cog.html#reprojection-related-creation-options
 ZOOM_LEVEL_STRATEGY: str = os.getenv("ZOOM_LEVEL_STRATEGY", "AUTO")
-if ZOOM_LEVEL_STRATEGY not in ZoomLevelStrategies.__members__:
-    raise ValueError(f'Invalid zoom level strategy "{ZOOM_LEVEL_STRATEGY}"; must be one of {sorted(ZoomLevelStrategies.__members__.keys())}')
