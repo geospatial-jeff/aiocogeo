@@ -2,6 +2,8 @@
 import logging
 import os
 
+from .constants import ZoomLevelStrategies
+
 # Changes the log level
 LOG_LEVEL: str = os.getenv("LOG_LEVEL", "ERROR")
 
@@ -13,10 +15,10 @@ VERBOSE_LOGS: bool = False if os.getenv("VERBOSE_LOGS", "FALSE") == "FALSE" else
 # https://gdal.org/user/virtual_file_systems.html#vsicurl-http-https-ftp-files-random-access
 # Defines the number of bytes read in the first GET request at file opening
 # Can help performance when reading images with a large header
-INGESTED_BYTES_AT_OPEN: int = os.getenv("INGESTED_BYTES_AT_OPEN", 16384)
+INGESTED_BYTES_AT_OPEN: int = int(os.getenv("INGESTED_BYTES_AT_OPEN", "16384"))
 
 # Defines the chunk size used for additional GET requests required to read the header
-HEADER_CHUNK_SIZE: int = os.getenv("HEADER_CHUNK_SIZE", 16384)
+HEADER_CHUNK_SIZE: int = int(os.getenv("HEADER_CHUNK_SIZE", "16384"))
 
 # https://trac.osgeo.org/gdal/wiki/ConfigOptions#VSI_CACHE
 # Determines if in-memory block caching is enabled
@@ -55,3 +57,8 @@ BOUNDLESS_READ_FILL_VALUE: int = int(os.getenv("BOUNDLESS_READ_FILL_VALUE", "0")
 AWS_REQUEST_PAYER: str = os.getenv(
     "AWS_REQUEST_PAYER", None
 )
+
+# Mimics GDAL COG `ZOOM_LEVEL_STRATEGY`: https://gdal.org/drivers/raster/cog.html#reprojection-related-creation-options
+ZOOM_LEVEL_STRATEGY: str = os.getenv("ZOOM_LEVEL_STRATEGY", "AUTO")
+if ZOOM_LEVEL_STRATEGY not in ZoomLevelStrategies.__members__:
+    raise ValueError(f'Invalid zoom level strategy "{ZOOM_LEVEL_STRATEGY}"; must be one of {sorted(ZoomLevelStrategies.__members__.keys())}')

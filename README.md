@@ -90,7 +90,7 @@ Reading the top left tile of an image at native resolution:
 async with COGReader("https://async-cog-reader-test-data.s3.amazonaws.com/webp_cog.tif") as cog:
     x = y = z = 0
     tile = await cog.get_tile(x, y, z)
-    
+
     ifd = cog.ifds[z]
     assert tile.shape == (ifd.bands, ifd.TileHeight.value, ifd.TileWidth.value)
 ```
@@ -128,7 +128,7 @@ async with COGReader("https://async-cog-reader-test-data.s3.amazonaws.com/naip_i
 
 <p align="center">
   <img src="https://async-cog-reader-test-data.s3.amazonaws.com/readme/masked_tile.jpg" width="300" />
-  <img src="https://async-cog-reader-test-data.s3.amazonaws.com/readme/mask.jpg" width="300" /> 
+  <img src="https://async-cog-reader-test-data.s3.amazonaws.com/readme/mask.jpg" width="300" />
 </p>
 
 ### Configuration
@@ -143,6 +143,11 @@ Configuration options are exposed through environment variables:
 - **LOG_LEVEL** - determines the log level used by the package (defaults to ERROR)
 - **VERBOSE_LOGS** - enables verbose logging, designed for use when `LOG_LEVEL=DEBUG` (defaults to FALSE)
 - **AWS_REQUEST_PAYER** - set to `requester` to enable reading from S3 RequesterPays buckets.
+- **ZOOM_LEVEL_STRATEGY** - mimics [GDAL's `ZOOM_LEVEL_STRATEGY` creation option](https://gdal.org/drivers/raster/cog.html#reprojection-related-creation-options):
+  - `AUTO` (default) will upsample or downsample from the zoom level whose resolution is closest to the desired resolution.
+  - `LOWER` will always upsample from the zoom level immediately below the desired resolution (requesting less data).
+  - `UPPER` will always downsample from the zoom level immediately above the desired resoluion (requesting more data).
+  - `UPPERAPPROX` handles floating point rounding errors for COGs generated at an exact zoom level: if the desired resolution is within 1% of the zoom level immediately below then upsample that like `LOWER`, else downsample from the zoom level immediately above like `UPPER`.
 
 Refer to [`aiocogeo/config.py`](https://github.com/geospatial-jeff/aiocogeo/blob/master/aiocogeo/config.py) for more details about configuration options.
 

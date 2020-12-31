@@ -1,4 +1,5 @@
 """COG mixins for partial reads"""
+from aiocogeo.constants import ZoomLevelStrategies
 import asyncio
 import abc
 from dataclasses import dataclass
@@ -9,6 +10,7 @@ import affine
 import numpy as np
 from PIL import Image
 
+from . import config
 from .ifd import ImageIFD, MaskIFD
 from .utils import run_in_background
 
@@ -119,9 +121,21 @@ class PartialReadBase(abc.ABC):
         )
         target_res = target_gt.a
 
-        # Choose overview whose res is closest to the target res. This can lead to downsampling or upsampling.
         available_resolutions = np.array([src_res] + [src_res * decim for decim in self.overviews])
-        ovr_level = np.argmin(np.abs(available_resolutions - target_res))
+        if config.ZOOM_LEVEL_STRATEGY == ZoomLevelStrategies.AUTO.value:
+            preferred_resolutions = available_resolutions > 0.0
+        elif config.ZOOM_LEVEL_STRATEGY == ZoomLevelStrategies.LOWER.value:
+            preferred_resolutions = available_resolutions >= target_res
+        elif config.ZOOM_LEVEL_STRATEGY == ZoomLevelStrategies.UPPER.value:
+            preferred_resolutions = available_resolutions <= target_res
+        elif config.ZOOM_LEVEL_STRATEGY == ZoomLevelStrategies.UPPERAPPROX.value:
+            preferred_resolutions = available_resolutions <= target_res * 1.01
+        else:
+            raise ValueError(f'Invalid zoom level strategy "{config.ZOOM_LEVEL_STRATEGY}"; must be one of {sorted(ZoomLevelStrategies.__members__.keys())}')
+        res_deltas = np.abs(available_resolutions - target_res)
+        if preferred_resolutions.any():  # needed if e.g. target_res lower than lowest zoom and LOWER strategy used
+            res_deltas[~preferred_resolutions] = np.inf
+        ovr_level = np.argmin(res_deltas)
 
         return ovr_level
 
