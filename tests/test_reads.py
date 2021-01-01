@@ -314,7 +314,7 @@ async def test_boundless_read_fill_value(create_cog_reader, monkeypatch):
         # Count number of pixels with a value of 1
         tile = await cog.read(bounds=bounds, shape=(256, 256))
         counts = dict(zip(*np.unique(tile, return_counts=True)))
-        assert counts[1] == 351
+        assert counts[1] == 713
 
         # Set fill value of 1
         monkeypatch.setattr(config, "BOUNDLESS_READ_FILL_VALUE", 1)
@@ -322,7 +322,7 @@ async def test_boundless_read_fill_value(create_cog_reader, monkeypatch):
         # Count number of pixels with a value of 1
         tile = await cog.read(bounds=bounds, shape=(256, 256))
         counts = dict(zip(*np.unique(tile, return_counts=True)))
-        assert counts[1] == 167583
+        assert counts[1] == 154889
 
 
 @pytest.mark.asyncio
@@ -353,20 +353,25 @@ async def test_read_not_in_bounds(create_cog_reader, infile):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "width,height", [(500, 500), (1000, 1000), (5000, 5000), (10000, 10000)]
+    "width,height,strategy,expected_ovr", [
+        # 100x100 has target res of 61.68 which is lower than even the lowest zoom level
+        (100, 100, "AUTO", 6), (100, 100, "LOWER", 6), (100, 100, "UPPER", 6), (100, 100, "1", 6),
+        # 1284x1284 has target res of 4.803 which is *barely* below the 3rd overview
+        (1284, 1284, "AUTO", 3), (1284, 1284, "LOWER", 4), (1284, 1284, "UPPER", 3), (1284, 1284, "1", 3),
+        # 1285x1285 has target res of 4.8 which is exactly the 3rd overview
+        (1285, 1285, "AUTO", 3), (1285, 1285, "LOWER", 3), (1285, 1285, "UPPER", 3), (1285, 1285, "1", 3),
+        # 1286x1286 has target res of 4.796 which is *barely* above the 3rd overview; exercises custom percentage use case
+        (1286, 1286, "AUTO", 3), (1286, 1286, "LOWER", 3), (1286, 1286, "UPPER", 2), (1286, 1286, "1", 3),
+        # 20000x20000 has target res of 0.3084 which is higher than even the highest zoom level
+        (20000, 20000, "AUTO", 0), (20000, 20000, "LOWER", 0), (20000, 20000, "UPPER", 0), (20000, 20000, "1", 0),
+    ]
 )
-async def test_cog_get_overview_level(create_cog_reader, width, height):
+async def test_cog_get_overview_level(create_cog_reader, width, height, strategy, expected_ovr, monkeypatch):
+    monkeypatch.setattr(config, "ZOOM_LEVEL_STRATEGY", strategy)
+    # this COG has zoom levels at the following resolutions: [ 0.6,  1.2,  2.4,  4.8,  9.6, 19.2, 38.4]
     async with create_cog_reader(TEST_DATA[0]) as cog:
         ovr = cog._get_overview_level(cog.native_bounds, width, height)
-
-        with rasterio.open(TEST_DATA[0]) as src:
-            expected_ovr = rio_tiler_utils.get_overview_level(
-                src, src.bounds, height, width
-            )
-            # Our index for source data is 0 while rio tiler uses -1
-            expected_ovr = 0 if expected_ovr == -1 else expected_ovr
-            assert ovr == expected_ovr
-
+        assert ovr == expected_ovr
 
 @pytest.mark.asyncio
 async def test_inject_session(create_cog_reader):
