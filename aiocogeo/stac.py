@@ -1,3 +1,4 @@
+"""aiocogeo.stac"""
 import asyncio
 from dataclasses import dataclass, field
 from typing import Dict, Optional, Set
@@ -5,25 +6,31 @@ from typing import Dict, Optional, Set
 from stac_pydantic.shared import Asset, MimeTypes
 
 from .cog import COGReader, CompositeReader
-from .filesystems import Filesystem
 from .errors import MissingAssets
+from .filesystems import Filesystem
 
 
 @dataclass
 class AssetReader(COGReader):
+    """Extends COGReader to include a stac-pydantic asset"""
+
     asset: Asset = Asset
 
 
 @dataclass
 class STACReader(CompositeReader):
+    """Read COG(s) referenced in a STAC item"""
+
     filepath: Optional[str] = None
     include_types: Set[MimeTypes] = field(default_factory=lambda: {MimeTypes.cog})
 
     kwargs: Optional[Dict] = field(default_factory=dict)
 
-
     async def __aenter__(self):
-        async with Filesystem.create_from_filepath(self.filepath, **self.kwargs) as file_reader:
+        """async context management"""
+        async with Filesystem.create_from_filepath(
+            self.filepath, **self.kwargs
+        ) as file_reader:
             self._file_reader = file_reader
             item = await file_reader.request_json()
 
@@ -33,7 +40,7 @@ class STACReader(CompositeReader):
             if item["assets"][asset]["type"] in self.include_types:
                 reader = AssetReader(
                     filepath=item["assets"][asset]["href"],
-                    asset=Asset(name=asset, **item['assets'][asset])
+                    asset=Asset(name=asset, **item["assets"][asset]),
                 )
                 reader_futs.append(reader)
 
@@ -45,6 +52,7 @@ class STACReader(CompositeReader):
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """async context management"""
         await self._file_reader._close()
         for reader in self.readers:
             await reader._file_reader._close()

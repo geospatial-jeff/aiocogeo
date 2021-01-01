@@ -1,8 +1,8 @@
-"""COG mixins for partial reads"""
-import asyncio
+"""aiocogeo.partial_reads"""
 import abc
-from dataclasses import dataclass
+import asyncio
 import math
+from dataclasses import dataclass
 from typing import List, Optional, Tuple, Union
 
 import affine
@@ -13,12 +13,13 @@ from . import config
 from .ifd import ImageIFD, MaskIFD
 from .utils import run_in_background
 
-
 NpArrayType = Union[np.ndarray, np.ma.masked_array]
 
 
 @dataclass
 class TileMetadata:
+    """Assortment of metadata for a particular partial read"""
+
     # top left corner of the partial read
     tlx: float
     tly: float
@@ -43,6 +44,8 @@ class TileMetadata:
 
 @dataclass
 class PartialReadBase(abc.ABC):
+    """PartialReadBase"""
+
     @property
     @abc.abstractmethod
     def is_masked(self) -> bool:
@@ -73,7 +76,10 @@ class PartialReadBase(abc.ABC):
 
     @abc.abstractmethod
     async def read(
-        self, bounds: Tuple[float, float, float, float], shape: Tuple[int, int], resample_method: int
+        self,
+        bounds: Tuple[float, float, float, float],
+        shape: Tuple[int, int],
+        resample_method: int,
     ) -> Union[np.ndarray, np.ma.masked_array]:
         """Do a partial read"""
         ...
@@ -87,11 +93,10 @@ class PartialReadBase(abc.ABC):
             return True
         return False
 
-
     @staticmethod
     def _intersect_bounds(
         read_bounds: Tuple[float, float, float, float],
-        cog_bounds: Tuple[float, float, float, float]
+        cog_bounds: Tuple[float, float, float, float],
     ) -> bool:
         """
         Determine if a bounding box intersects another bounding box
@@ -120,8 +125,14 @@ class PartialReadBase(abc.ABC):
         )
         target_res = target_gt.a
 
-        available_resolutions = [src_res] + [src_res * decim for decim in self.overviews]
-        percentage = int({"AUTO": 50, "LOWER": 100, "UPPER": 0}.get(config.ZOOM_LEVEL_STRATEGY, config.ZOOM_LEVEL_STRATEGY))
+        available_resolutions = [src_res] + [
+            src_res * decim for decim in self.overviews
+        ]
+        percentage = int(
+            {"AUTO": 50, "LOWER": 100, "UPPER": 0}.get(
+                config.ZOOM_LEVEL_STRATEGY, config.ZOOM_LEVEL_STRATEGY
+            )
+        )
         assert 0 <= percentage <= 100
         # Iterate over zoom levels from lowest/coarsest to highest/finest. If the `target_res` is more than `percentage`
         # percent of the way from the zoom level below to the zoom level above, then upsample the zoom level below, else
@@ -208,7 +219,6 @@ class PartialReadBase(abc.ABC):
             fused = np.ma.masked_array(fused)
         return fused
 
-
     @staticmethod
     def _stitch_image_tile(
         arr: NpArrayType,
@@ -231,7 +241,6 @@ class PartialReadBase(abc.ABC):
                 idx * tile_width : (idx + 1) * tile_width,
             ] = arr.mask
 
-
     async def _get_and_stitch_tile(
         self,
         xtile: int,
@@ -239,12 +248,13 @@ class PartialReadBase(abc.ABC):
         idx: int,
         idy: int,
         img_tiles: TileMetadata,
-        fused_arr: NpArrayType
+        fused_arr: NpArrayType,
     ) -> None:
         """Asynchronously request an internal tile and stitch into an array"""
         tile = await self.get_tile(xtile, ytile, img_tiles.ovr_level)
-        self._stitch_image_tile(tile, fused_arr, idx, idy, img_tiles.tile_width, img_tiles.tile_height)
-
+        self._stitch_image_tile(
+            tile, fused_arr, idx, idy, img_tiles.tile_width, img_tiles.tile_height
+        )
 
     async def _request_tiles(self, img_tiles: TileMetadata) -> NpArrayType:
         """Concurrently request the image tiles and mosaic into a larger array"""
@@ -253,7 +263,9 @@ class PartialReadBase(abc.ABC):
         for idx, xtile in enumerate(range(img_tiles.xmin, img_tiles.xmax + 1)):
             for idy, ytile in enumerate(range(img_tiles.ymin, img_tiles.ymax + 1)):
                 get_tile_task = asyncio.create_task(
-                    self._get_and_stitch_tile(xtile, ytile, idx, idy, img_tiles, img_arr)
+                    self._get_and_stitch_tile(
+                        xtile, ytile, idx, idy, img_tiles, img_arr
+                    )
                 )
                 tile_tasks.append(get_tile_task)
         await asyncio.gather(*tile_tasks)
@@ -268,34 +280,50 @@ class PartialReadBase(abc.ABC):
         ]
 
     def _resample(
-        self, clipped: NpArrayType, img_tiles: TileMetadata, out_shape: Tuple[int, int], resample_method: int
+        self,
+        clipped: NpArrayType,
+        img_tiles: TileMetadata,
+        out_shape: Tuple[int, int],
+        resample_method: int,
     ) -> NpArrayType:
         """Resample a numpy array to the desired shape"""
         _clipped = np.rollaxis(clipped, 0, 3)
         if clipped.shape[0] == 1:
             _clipped = np.squeeze(_clipped, axis=2)
         img = Image.fromarray(_clipped)
-        resized = np.array(img.resize((out_shape[0], out_shape[1]), resample=resample_method)).astype(img_tiles.dtype)
+        resized = np.array(
+            img.resize((out_shape[0], out_shape[1]), resample=resample_method)
+        ).astype(img_tiles.dtype)
         if clipped.shape[0] != 1:
             resized = np.rollaxis(resized, 2, 0)
         if self._add_mask:
-            mask = Image.fromarray(clipped.mask[0,...])
-            resized_mask = np.array(mask.resize((out_shape[0], out_shape[1]), resample=Image.BILINEAR))
+            mask = Image.fromarray(clipped.mask[0, ...])
+            resized_mask = np.array(
+                mask.resize((out_shape[0], out_shape[1]), resample=Image.BILINEAR)
+            )
             resized_mask = np.stack([resized_mask for _ in range(img_tiles.bands)])
             resized = np.ma.masked_array(resized, resized_mask)
         return resized
 
     def _postprocess(
-        self, arr: NpArrayType, img_tiles: TileMetadata, out_shape: Tuple[int, int], resample_method: int
+        self,
+        arr: NpArrayType,
+        img_tiles: TileMetadata,
+        out_shape: Tuple[int, int],
+        resample_method: int,
     ) -> NpArrayType:
         """Wrapper around ``_clip_array`` and ``_resample`` to postprocess the partial read"""
         return self._resample(
-            self._clip_array(arr, img_tiles), img_tiles=img_tiles, out_shape=out_shape, resample_method=resample_method
+            self._clip_array(arr, img_tiles),
+            img_tiles=img_tiles,
+            out_shape=out_shape,
+            resample_method=resample_method,
         )
 
 
 @dataclass
 class PartialReadInterface(PartialReadBase):
+    """PartialReadInterface"""
 
     @staticmethod
     def _extract_tile(
@@ -318,7 +346,10 @@ class PartialReadInterface(PartialReadBase):
         return (offset, byte_count - offset - 1)
 
     async def _request_merged_tile(
-        self, arr: NpArrayType, indices: List[Tuple[int, int, int]], img_tiles: TileMetadata
+        self,
+        arr: NpArrayType,
+        indices: List[Tuple[int, int, int]],
+        img_tiles: TileMetadata,
     ) -> None:
         """Request a range, extract/decompress/mosaic each tile"""
         tile_indices = [idx[0] for idx in indices]

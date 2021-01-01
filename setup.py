@@ -1,4 +1,5 @@
-from setuptools import setup, find_packages
+"""aiocogeo packaging"""
+from setuptools import find_packages, setup
 
 with open("README.md") as f:
     desc = f.read()
@@ -15,7 +16,7 @@ extras = {
         "pytest-cov",
         "shapely",
         "aioboto3",
-    ]
+    ],
 }
 
 setup(
@@ -30,13 +31,13 @@ setup(
     license="mit",
     python_requires=">=3.7",
     classifiers=[
-        'Intended Audience :: Developers',
+        "Intended Audience :: Developers",
         "Intended Audience :: Information Technology",
         "Intended Audience :: Science/Research",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
-        'License :: OSI Approved :: MIT License',
+        "License :: OSI Approved :: MIT License",
     ],
     keywords="cogeo COG",
     packages=find_packages(exclude=["tests"]),
@@ -51,13 +52,11 @@ setup(
         "Pillow",
         "stac-pydantic>=1.3.*",
         "geojson-pydantic==0.1.0",
-        "xmltodict"
+        "xmltodict",
     ],
     test_suite="tests",
-    setup_requires=[
-        'pytest-runner'
-    ],
+    setup_requires=["pytest-runner"],
     entry_points={"console_scripts": ["aiocogeo=aiocogeo.scripts.cli:app"]},
     extras_require=extras,
-    tests_require=extras['dev']
+    tests_require=extras["dev"],
 )

@@ -1,11 +1,10 @@
+"""aiocogeo.utils"""
 import asyncio
 from functools import partial
 from typing import Any, Callable, List
 
 
-async def run_in_background(
-    func: Callable, *args: Any, **kwargs: Any
-) -> Any:
+async def run_in_background(func: Callable, *args: Any, **kwargs: Any) -> Any:
     """
     Run a function in the background to prevent blocking the main thread.  Functions will be executed using the default
     thread pool executor of the event loop.  By default, event loops use a ``concurrent.futures.ThreadPoolExecutor``,
@@ -23,4 +22,4 @@ async def run_in_background(
 def chunks(lst: List, n: int):
     """Yield successive n-sized chunks from lst."""
     for i in range(0, len(lst), n):
-        yield lst[i:i + n]
+        yield lst[i : i + n]

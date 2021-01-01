@@ -1,3 +1,5 @@
+"""aiocogeo.constants"""
+
 import enum
 
 WEB_MERCATOR_EPSG = 3857
@@ -14,8 +16,10 @@ COMPRESSIONS = {
 
 INTERLEAVE = {1: "pixel", 2: "band"}
 
+
 class ColorInterp(enum.IntEnum):
     """https://github.com/mapbox/rasterio/blob/master/rasterio/enums.py#L6-L25"""
+
     undefined = 0
     gray = 1
     grey = 1
@@ -34,6 +38,7 @@ class ColorInterp(enum.IntEnum):
     Y = 14
     Cb = 15
     Cr = 16
+
 
 PHOTOMETRIC = {
     0: "miniswhite",
@@ -172,7 +177,7 @@ TIFF_TAGS = {
     33922: "ModelTiepointTag",
     34735: "GeoKeyDirectoryTag",
     42112: "GdalMetadata",
-    42113: "NoData"
+    42113: "NoData",
 }
 
 
@@ -196,7 +201,7 @@ GDAL_METADATA_TAGS = [
     "YResolution",
     "ResolutionUnit",
     "MinSampleValue",
-    "MaxSampleValue"
+    "MaxSampleValue",
 ]
 
 
@@ -209,6 +214,7 @@ RASTER_TYPE = {
 
 class MaskFlags(enum.IntEnum):
     """https://github.com/mapbox/rasterio/blob/master/rasterio/enums.py#L80-L84"""
+
     all_valid = 1
     per_dataset = 2
     alpha = 4

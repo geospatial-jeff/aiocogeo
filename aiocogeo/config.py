@@ -1,7 +1,6 @@
-"""Configurable values exposed to user as environment variables"""
+"""aiocogeo.config"""
 import logging
 import os
-
 
 # Changes the log level
 LOG_LEVEL: str = os.getenv("LOG_LEVEL", "ERROR")
@@ -44,18 +43,14 @@ HTTP_MERGE_CONSECUTIVE_RANGES: bool = True if os.getenv(
 # Determines if internal tiles outside the bounds of the IFD are read. When set to ``TRUE`` (default), if a partial read
 # isn't fully covered by internal tiles, missing tiles will be created using the fill value defined by the
 # ``BOUNDLESS_READ_FILL_VALUE`` config option. When set to ``FALSE``, an exception will be raised instead
-BOUNDLESS_READ: bool = False if os.getenv(
-    "BOUNDLESS_READ", "TRUE"
-) == "FALSE" else True
+BOUNDLESS_READ: bool = False if os.getenv("BOUNDLESS_READ", "TRUE") == "FALSE" else True
 
 
 # Determines the fill value used for boundless reads
 BOUNDLESS_READ_FILL_VALUE: int = int(os.getenv("BOUNDLESS_READ_FILL_VALUE", "0"))
 
 # Enable reading from a S3 requester pays bucket
-AWS_REQUEST_PAYER: str = os.getenv(
-    "AWS_REQUEST_PAYER", None
-)
+AWS_REQUEST_PAYER: str = os.getenv("AWS_REQUEST_PAYER", None)
 
 # Mimics GDAL COG `ZOOM_LEVEL_STRATEGY`: https://gdal.org/drivers/raster/cog.html#reprojection-related-creation-options
 ZOOM_LEVEL_STRATEGY: str = os.getenv("ZOOM_LEVEL_STRATEGY", "AUTO")

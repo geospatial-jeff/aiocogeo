@@ -1,6 +1,7 @@
+"""aiocogeo.scripts.cli"""
 import asyncio
-from functools import wraps
 import json as _json
+from functools import wraps
 
 import typer
 
@@ -10,6 +11,8 @@ app = typer.Typer()
 
 
 def coro(f):
+    """execute async functions with click"""
+
     @wraps(f)
     def wrapper(*args, **kwargs):
         return asyncio.run(f(*args, **kwargs))
@@ -18,10 +21,12 @@ def coro(f):
 
 
 def _make_bold(s, **kwargs):
+    """boldify a string"""
     return typer.style(s, bold=True, **kwargs)
 
 
 def _get_ifd_stats(ifds):
+    """get table of stats for a list of ifds"""
     ifd_stats = []
     for idx, ifd in enumerate(ifds):
         if not isinstance(ifd.TileByteCounts.value, tuple):
@@ -30,20 +35,23 @@ def _get_ifd_stats(ifds):
             byte_counts = ifd.TileByteCounts.value
         tile_sizes = [b / 1000 for b in byte_counts]
         mean_tile_size = round(sum(tile_sizes) / len(tile_sizes), 3)
-        ifd_stats.append({
-            'id': idx,
-            'size': (ifd.ImageWidth.value, ifd.ImageHeight.value),
-            'block_size': (ifd.TileWidth.value, ifd.TileHeight.value),
-            'tile_sizes': {
-                'min': min(tile_sizes),
-                'max': max(tile_sizes),
-                'mean': mean_tile_size
+        ifd_stats.append(
+            {
+                "id": idx,
+                "size": (ifd.ImageWidth.value, ifd.ImageHeight.value),
+                "block_size": (ifd.TileWidth.value, ifd.TileHeight.value),
+                "tile_sizes": {
+                    "min": min(tile_sizes),
+                    "max": max(tile_sizes),
+                    "mean": mean_tile_size,
+                },
             }
-        })
+        )
     return ifd_stats
 
 
 def _create_ifd_table(ifds, start="\t"):
+    """create ifd table"""
     table = (
         f"{start}{_make_bold('Id', underline=True):<20}{_make_bold('Size', underline=True):<27}"
         f"{_make_bold('BlockSize', underline=True):<26}{_make_bold('MinTileSize (KB)', underline=True):<33}"
@@ -60,29 +68,31 @@ def _create_ifd_table(ifds, start="\t"):
         )
     return table
 
+
 def _create_json_info(cog):
+    """get json metadata"""
     profile = cog.profile
 
     info = {
         "file": cog.filepath,
         "profile": {
-            "width": profile['width'],
-            "height": profile['height'],
-            "bands": profile['count'],
-            "dtype": profile['dtype'],
-            "crs": profile['crs'],
-            "origin": (profile['transform'].c, profile['transform'].f),
-            "resolution": (profile['transform'].a, profile['transform'].e),
+            "width": profile["width"],
+            "height": profile["height"],
+            "bands": profile["count"],
+            "dtype": profile["dtype"],
+            "crs": profile["crs"],
+            "origin": (profile["transform"].c, profile["transform"].f),
+            "resolution": (profile["transform"].a, profile["transform"].e),
             "bbox": cog.native_bounds,
             "compression": cog.ifds[0].compression,
-            "nodata": profile['nodata'],
-            "internal_mask": cog.is_masked
+            "nodata": profile["nodata"],
+            "internal_mask": cog.is_masked,
         },
-        "ifd": _get_ifd_stats(cog.ifds)
+        "ifd": _get_ifd_stats(cog.ifds),
     }
 
     if cog.is_masked:
-        info['mask_ifd'] = _get_ifd_stats(cog.mask_ifds)
+        info["mask_ifd"] = _get_ifd_stats(cog.mask_ifds)
 
     return info
 
@@ -90,13 +100,14 @@ def _create_json_info(cog):
 @app.command(
     short_help="Read COG metadata.",
     help="Read COG profile, IFD, and mask IFD metadata.",
-    no_args_is_help=True
+    no_args_is_help=True,
 )
 @coro
 async def info(
     filepath: str = typer.Argument(..., file_okay=True),
-    json: bool = typer.Option(False, show_default=True, help="JSON-formatted response")
+    json: bool = typer.Option(False, show_default=True, help="JSON-formatted response"),
 ):
+    """aiocogeo info"""
     sep = 25
     async with COGReader(filepath) as cog:
         if json:
@@ -137,9 +148,10 @@ async def info(
 @app.command(
     short_help="Create OGC TileMatrixSet.",
     help="Create OGC TileMatrixSet representation of the COG where each IFD is a unique tile matrix.",
-    no_args_is_help=True
+    no_args_is_help=True,
 )
 @coro
 async def create_tms(filepath: str):
+    """aiocogeo create-tms"""
     async with COGReader(filepath) as cog:
         typer.echo(_json.dumps(cog.create_tile_matrix_set(), indent=1))

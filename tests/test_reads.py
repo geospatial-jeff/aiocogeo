@@ -8,7 +8,6 @@ import rasterio
 from rasterio.warp import transform_bounds
 from rasterio.windows import Window
 from rio_tiler.io.cogeo import COGReader as cogeo_reader
-from rio_tiler import utils as rio_tiler_utils
 from rio_tiler.mercator import get_zooms
 from shapely.geometry import Polygon
 
@@ -141,7 +140,9 @@ async def test_cog_read(infile, create_cog_reader):
         arr = await cog.read(tile_native_bounds, (256, 256))
 
         with cogeo_reader(infile) as ds:
-            rio_tile_arr, rio_tile_mask = ds.tile(tile.x, tile.y, tile.z, tilesize=256, resampling_method="bilinear")
+            rio_tile_arr, rio_tile_mask = ds.tile(
+                tile.x, tile.y, tile.z, tilesize=256, resampling_method="bilinear"
+            )
 
         if cog.is_masked:
             tile_arr = np.ma.getdata(arr)
@@ -192,7 +193,7 @@ async def test_cog_read_internal_mask(create_cog_reader):
         assert np.ma.is_masked(tile)
 
         # Confirm proportion of masked pixels
-        valid_data = tile[tile.mask == False]
+        valid_data = tile[not tile.mask]
         frequencies = np.asarray(np.unique(valid_data, return_counts=True)).T
         assert pytest.approx(frequencies[0][1] / np.prod(tile.shape), abs=0.002) == 0
 
@@ -353,25 +354,44 @@ async def test_read_not_in_bounds(create_cog_reader, infile):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "width,height,strategy,expected_ovr", [
+    "width,height,strategy,expected_ovr",
+    [
         # 100x100 has target res of 61.68 which is lower than even the lowest zoom level
-        (100, 100, "AUTO", 6), (100, 100, "LOWER", 6), (100, 100, "UPPER", 6), (100, 100, "1", 6),
+        (100, 100, "AUTO", 6),
+        (100, 100, "LOWER", 6),
+        (100, 100, "UPPER", 6),
+        (100, 100, "1", 6),
         # 1284x1284 has target res of 4.803 which is *barely* below the 3rd overview
-        (1284, 1284, "AUTO", 3), (1284, 1284, "LOWER", 4), (1284, 1284, "UPPER", 3), (1284, 1284, "1", 3),
+        (1284, 1284, "AUTO", 3),
+        (1284, 1284, "LOWER", 4),
+        (1284, 1284, "UPPER", 3),
+        (1284, 1284, "1", 3),
         # 1285x1285 has target res of 4.8 which is exactly the 3rd overview
-        (1285, 1285, "AUTO", 3), (1285, 1285, "LOWER", 3), (1285, 1285, "UPPER", 3), (1285, 1285, "1", 3),
+        (1285, 1285, "AUTO", 3),
+        (1285, 1285, "LOWER", 3),
+        (1285, 1285, "UPPER", 3),
+        (1285, 1285, "1", 3),
         # 1286x1286 has target res of 4.796 which is *barely* above the 3rd overview; exercises custom percentage use case
-        (1286, 1286, "AUTO", 3), (1286, 1286, "LOWER", 3), (1286, 1286, "UPPER", 2), (1286, 1286, "1", 3),
+        (1286, 1286, "AUTO", 3),
+        (1286, 1286, "LOWER", 3),
+        (1286, 1286, "UPPER", 2),
+        (1286, 1286, "1", 3),
         # 20000x20000 has target res of 0.3084 which is higher than even the highest zoom level
-        (20000, 20000, "AUTO", 0), (20000, 20000, "LOWER", 0), (20000, 20000, "UPPER", 0), (20000, 20000, "1", 0),
-    ]
+        (20000, 20000, "AUTO", 0),
+        (20000, 20000, "LOWER", 0),
+        (20000, 20000, "UPPER", 0),
+        (20000, 20000, "1", 0),
+    ],
 )
-async def test_cog_get_overview_level(create_cog_reader, width, height, strategy, expected_ovr, monkeypatch):
+async def test_cog_get_overview_level(
+    create_cog_reader, width, height, strategy, expected_ovr, monkeypatch
+):
     monkeypatch.setattr(config, "ZOOM_LEVEL_STRATEGY", strategy)
     # this COG has zoom levels at the following resolutions: [ 0.6,  1.2,  2.4,  4.8,  9.6, 19.2, 38.4]
     async with create_cog_reader(TEST_DATA[0]) as cog:
         ovr = cog._get_overview_level(cog.native_bounds, width, height)
         assert ovr == expected_ovr
+
 
 @pytest.mark.asyncio
 async def test_inject_session(create_cog_reader):

@@ -1,23 +1,31 @@
-import asyncio
-from dataclasses import dataclass
+""""aiocogeo.ifd"""
 import math
+from dataclasses import dataclass
 from typing import Dict, Optional, Tuple, Union
 
 import numpy as np
 import xmltodict
 
 from .compression import Compression
-from .constants import COMPRESSIONS, GDAL_METADATA_TAGS, INTERLEAVE, RASTER_TYPE, SAMPLE_DTYPES
+from .constants import (
+    COMPRESSIONS,
+    GDAL_METADATA_TAGS,
+    INTERLEAVE,
+    RASTER_TYPE,
+    SAMPLE_DTYPES,
+)
 from .filesystems import Filesystem
 from .tag import GeoKeyDirectory, Tag
 from .utils import run_in_background
 
+
 @dataclass
 class IFD:
+    """Image File Directory"""
+
     next_ifd_offset: int
     tag_count: int
     _file_reader: Filesystem
-
 
     @staticmethod
     def _is_masked(tiff_tags: Dict[str, Tag]) -> bool:
@@ -25,10 +33,14 @@ class IFD:
         # # https://www.awaresystems.be/imaging/tiff/tifftags/newsubfiletype.html
         # # https://gdal.org/drivers/raster/gtiff.html#internal-nodata-masks
         if "NewSubfileType" in tiff_tags:
-            compression = tiff_tags['Compression'].value
-            photo_interp = tiff_tags['PhotometricInterpretation'].value
-            subfile_type = tiff_tags['NewSubfileType'].value
-            if (subfile_type[0] == 1 or subfile_type[2] == 1) and photo_interp == 4 and compression == 8:
+            compression = tiff_tags["Compression"].value
+            photo_interp = tiff_tags["PhotometricInterpretation"].value
+            subfile_type = tiff_tags["NewSubfileType"].value
+            if (
+                (subfile_type[0] == 1 or subfile_type[2] == 1)
+                and photo_interp == 4
+                and compression == 8
+            ):
                 return True
         return False
 
@@ -45,16 +57,21 @@ class IFD:
         file_reader.seek(ifd_start + (12 * tag_count) + 2)
         next_ifd_offset = await file_reader.read(4, cast_to_int=True)
 
-        if 'GeoKeyDirectoryTag' in tiff_tags:
-            tiff_tags['geo_keys'] = GeoKeyDirectory.read(tiff_tags['GeoKeyDirectoryTag'])
+        if "GeoKeyDirectoryTag" in tiff_tags:
+            tiff_tags["geo_keys"] = GeoKeyDirectory.read(
+                tiff_tags["GeoKeyDirectoryTag"]
+            )
 
         # Check if mask
         if cls._is_masked(tiff_tags):
             return MaskIFD(next_ifd_offset, tag_count, file_reader, **tiff_tags)
         return ImageIFD(next_ifd_offset, tag_count, file_reader, **tiff_tags)
 
+
 @dataclass
 class RequiredTags:
+    """Required tiff tags"""
+
     BitsPerSample: Tag
     Compression: Tag
     ImageHeight: Tag
@@ -68,8 +85,11 @@ class RequiredTags:
     TileOffsets: Tag
     TileWidth: Tag
 
+
 @dataclass
 class OptionalTags:
+    """Optional tiff tags"""
+
     # TIFF standard tags
     NewSubfileType: Tag = None
     Predictor: Tag = None
@@ -101,6 +121,8 @@ class OptionalTags:
 
 @dataclass
 class ImageIFD(OptionalTags, Compression, RequiredTags, IFD):
+    """IFD with image data"""
+
     _is_alpha: bool = False
     geo_keys: Optional[GeoKeyDirectory] = None
 
@@ -138,12 +160,13 @@ class ImageIFD(OptionalTags, Compression, RequiredTags, IFD):
 
     @property
     def nodata(self) -> Optional[int]:
+        """Nodata value"""
         return int(self.NoData.value[0]) if self.NoData else None
 
     @property
     def has_extra_samples(self):
+        """Extra samples"""
         return True if self.ExtraSamples else False
-
 
     @property
     def interleave(self) -> str:
@@ -184,33 +207,37 @@ class ImageIFD(OptionalTags, Compression, RequiredTags, IFD):
             if inst is not None:
                 if isinstance(inst.value, tuple):
                     # TODO: Maybe we are reading one extra byte
-                    val = b"".join(inst.value)[:-1].decode('utf-8')
+                    val = b"".join(inst.value)[:-1].decode("utf-8")
                 else:
                     val = inst.value
                 meta[f"TIFFTAG_{tag.upper()}"] = val
 
         if self.GdalMetadata:
-            xml = b''.join(self.GdalMetadata.value[:-1]).decode('utf-8')
+            xml = b"".join(self.GdalMetadata.value[:-1]).decode("utf-8")
             parsed = xmltodict.parse(xml)
-            tags = parsed['GDALMetadata']['Item']
+            tags = parsed["GDALMetadata"]["Item"]
             if isinstance(tags, list):
-                meta.update({tag['@name']:tag['#text'] for tag in tags})
+                meta.update({tag["@name"]: tag["#text"] for tag in tags})
             else:
-                meta.update({tags['@name']:tags['#text']})
+                meta.update({tags["@name"]: tags["#text"]})
 
         if self.geo_keys:
-            meta['AREA_OR_POINT'] = RASTER_TYPE[self.geo_keys.RasterType.value]
+            meta["AREA_OR_POINT"] = RASTER_TYPE[self.geo_keys.RasterType.value]
 
         return meta
 
     def __iter__(self):
         """Iterate through TIFF Tags"""
         for (k, v) in self.__dict__.items():
-            if k not in ("next_ifd_offset", "tag_count", "_file_reader", "geo_keys") and v:
+            if (
+                k not in ("next_ifd_offset", "tag_count", "_file_reader", "geo_keys")
+                and v
+            ):
                 yield v
 
 
 class MaskIFD(ImageIFD):
+    """IFD with mask data"""
 
     async def _get_tile(self, x: int, y: int) -> np.ndarray:
         """Read the requested tile from the IFD"""

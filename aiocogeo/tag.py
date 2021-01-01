@@ -1,13 +1,12 @@
-from dataclasses import dataclass
+"""aiocogeo.tag"""
 import logging
 import struct
-
+from dataclasses import dataclass
 from typing import Any, Optional, Tuple, Union
 
 from . import config
 from .constants import GEO_KEYS, TIFF_TAGS
 from .filesystems import Filesystem
-
 
 logger = logging.getLogger(__name__)
 logger.setLevel(config.LOG_LEVEL)
@@ -34,22 +33,30 @@ TAG_TYPES = {
     16: TagType(format="Q", size=8),  # TIFFlong8
 }
 
+
 @dataclass
 class BaseTag:
+    """base class"""
+
     code: int
     name: str
     count: int
 
+
 @dataclass
 class Tag(BaseTag):
+    """TIFF Tag"""
+
     tag_type: TagType
     length: int
     value: Union[Any, Tuple[Any]]
 
     def __getitem__(self, key):
+        """Allow indexing into tag values"""
         return self.value[key]
 
     def __len__(self):
+        """Number of values"""
         return self.count
 
     @classmethod
@@ -75,7 +82,7 @@ class Tag(BaseTag):
             # a single value If we need to keep adding more custom logic here for specific tags we should switch to
             # something more declarative where each tag defines how to read its data.
             if name == "NewSubfileType":
-                bit32 = '{:032b}'.format(value[0])
+                bit32 = "{:032b}".format(value[0])
                 value = [[int(x) for x in str(int(bit32)).zfill(3)]]
 
         else:
@@ -88,8 +95,12 @@ class Tag(BaseTag):
             if value_offset + length > current_size:
 
                 # we coerce the chunk size to be big enough to read the full tag value
-                chunk_size = max(value_offset + length - current_size, config.HEADER_CHUNK_SIZE)
-                reader.data += await reader.range_request(len(reader.data), chunk_size, is_header=True)
+                chunk_size = max(
+                    value_offset + length - current_size, config.HEADER_CHUNK_SIZE
+                )
+                reader.data += await reader.range_request(
+                    len(reader.data), chunk_size, is_header=True
+                )
 
             # read the tag value
             reader.seek(value_offset)
@@ -112,24 +123,27 @@ class Tag(BaseTag):
 
 @dataclass
 class GeoKey(BaseTag):
-    """http://docs.opengeospatial.org/is/19-008r4/19-008r4.html#_geokey"""
+    """GeoKey (a special type of tiff tag) - http://docs.opengeospatial.org/is/19-008r4/19-008r4.html#_geokey"""
+
     tag_location: int
     value: Any
 
     @classmethod
     def read(cls, key: Tuple[int, int, int, int]):
+        """read the tag from GeoKey values"""
         return cls(
             code=key[0],
             tag_location=key[1],
             count=key[2],
             value=key[3],
-            name=GEO_KEYS[key[0]]
+            name=GEO_KEYS[key[0]],
         )
 
 
 @dataclass
 class GeoKeyDirectory:
     """http://docs.opengeospatial.org/is/19-008r4/19-008r4.html#_requirements_class_geokeydirectorytag"""
+
     RasterType: GeoKey
     GeographicType: Optional[GeoKey] = None
     ProjectedType: Optional[GeoKey] = None
@@ -138,13 +152,17 @@ class GeoKeyDirectory:
     def read(cls, tag: Tag) -> "GeoKeyDirectory":
         """Parse GeoKeyDirectoryTag"""
         geokeys = {}
-        assert tag.name == 'GeoKeyDirectoryTag'
+        assert tag.name == "GeoKeyDirectoryTag"
         for idx in range(0, len(tag), 4):
             if tag[idx] in list(GEO_KEYS):
-                geokeys[GEO_KEYS[tag[idx]]] = GeoKey.read(tag[idx:idx+4])
+                geokeys[GEO_KEYS[tag[idx]]] = GeoKey.read(tag[idx : idx + 4])
         return cls(**geokeys)
 
     @property
     def epsg(self) -> int:
         """Return the EPSG code representing the crs of the image"""
-        return self.ProjectedType.value if self.ProjectedType else self.GeographicType.value
+        return (
+            self.ProjectedType.value
+            if self.ProjectedType
+            else self.GeographicType.value
+        )

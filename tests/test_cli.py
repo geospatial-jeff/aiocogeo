@@ -1,12 +1,12 @@
 import json
 
-from morecantile.models import TileMatrixSet
 import pytest
+from morecantile.models import TileMatrixSet
+
+from aiocogeo import config
+from aiocogeo.scripts.cli import app
 
 from .conftest import TEST_DATA
-
-from aiocogeo.scripts.cli import app
-from aiocogeo import config
 
 
 @pytest.mark.parametrize("infile", TEST_DATA[:-1])
