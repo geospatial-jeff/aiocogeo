@@ -1,4 +1,8 @@
-# aiocogeo [![CircleCI](https://circleci.com/gh/geospatial-jeff/aiocogeo/tree/master.svg?style=svg)](https://circleci.com/gh/geospatial-jeff/aiocogeo/tree/master)[![codecov](https://codecov.io/gh/geospatial-jeff/aiocogeo/branch/master/graph/badge.svg)](https://codecov.io/gh/geospatial-jeff/aiocogeo)
+# aiocogeo
+[![GHA](https://github.com/geospatial-jeff/aiocogeo/workflows/CI/badge.svg)](https://github.com/geospatial-jeff/aiocogeo/actions?query=workflow%3ACI)
+[![codecov](https://codecov.io/gh/geospatial-jeff/aiocogeo/branch/master/graph/badge.svg)](https://codecov.io/gh/geospatial-jeff/aiocogeo)
+[![pypi](https://img.shields.io/pypi/v/aiocogeo?color=%2334D058&label=pypi%20package)](https://pypi.org/project/aiocogeo)
+[![license](https://img.shields.io/github/license/geospatial-jeff/aiocogeo.svg)](https://github.com/geospatial-jeff/aiocogeo/blob/master/LICENSE)
 
 ## Installation
 ```
