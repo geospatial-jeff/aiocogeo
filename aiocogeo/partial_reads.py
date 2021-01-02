@@ -9,6 +9,7 @@ import affine
 import numpy as np
 from PIL import Image
 
+from . import config
 from .ifd import ImageIFD, MaskIFD
 from .utils import run_in_background
 
@@ -119,20 +120,20 @@ class PartialReadBase(abc.ABC):
         )
         target_res = target_gt.a
 
-        ovr_level = 0
-        if target_res > src_res:
-            # Decimated resolution at each overview
-            overviews = [src_res * decim for decim in self.overviews]
-            for ovr_level in range(ovr_level, len(overviews) - 1):
-                ovr_res = src_res if ovr_level == 0 else overviews[ovr_level]
-                if (ovr_res < target_res) and (overviews[ovr_level + 1] > target_res):
-                    break
-                if abs(ovr_res - target_res) < 1e-1:
-                    break
-            else:
-                ovr_level = len(overviews) - 1
+        available_resolutions = [src_res] + [src_res * decim for decim in self.overviews]
+        percentage = int({"AUTO": 50, "LOWER": 100, "UPPER": 0}.get(config.ZOOM_LEVEL_STRATEGY, config.ZOOM_LEVEL_STRATEGY))
+        assert 0 <= percentage <= 100
+        # Iterate over zoom levels from lowest/coarsest to highest/finest. If the `target_res` is more than `percentage`
+        # percent of the way from the zoom level below to the zoom level above, then upsample the zoom level below, else
+        # downsample the zoom level above.
+        for i in reversed(range(1, len(available_resolutions))):
+            res_current = available_resolutions[i]
+            res_higher = available_resolutions[i - 1]
+            threshold = res_current - (res_current - res_higher) * (percentage / 100.0)
+            if target_res > threshold or target_res == res_current:
+                return i
 
-        return ovr_level
+        return 0
 
     def _calculate_image_tiles(
         self,
@@ -280,7 +281,7 @@ class PartialReadBase(abc.ABC):
         if self._add_mask:
             mask = Image.fromarray(clipped.mask[0,...])
             resized_mask = np.array(mask.resize((out_shape[0], out_shape[1]), resample=Image.BILINEAR))
-            resized_mask = np.stack((resized_mask for _ in range(img_tiles.bands)))
+            resized_mask = np.stack([resized_mask for _ in range(img_tiles.bands)])
             resized = np.ma.masked_array(resized, resized_mask)
         return resized
 

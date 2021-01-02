@@ -116,3 +116,5 @@ celerybeat-schedule
 
 # mkdocs documentation
 /site
+
+.vscode
