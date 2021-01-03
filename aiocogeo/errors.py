@@ -1,5 +1,4 @@
 """aiocogeo.errors"""
-from dataclasses import dataclass
 
 
 class CogReadError(Exception):
