@@ -193,7 +193,7 @@ async def test_cog_read_internal_mask(create_cog_reader):
         assert np.ma.is_masked(tile)
 
         # Confirm proportion of masked pixels
-        valid_data = tile[not tile.mask]
+        valid_data = tile[tile.mask == False]  # noqa
         frequencies = np.asarray(np.unique(valid_data, return_counts=True)).T
         assert pytest.approx(frequencies[0][1] / np.prod(tile.shape), abs=0.002) == 0
 
