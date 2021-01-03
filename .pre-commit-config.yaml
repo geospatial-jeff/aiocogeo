@@ -36,9 +36,9 @@ repos:
             '--match=(?!test).*\.py',
           ]
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v0.770
-    hooks:
-      - id: mypy
-        language_version: python3.7
-        args: ["--no-strict-optional", "--ignore-missing-imports"]
+#  - repo: https://github.com/pre-commit/mirrors-mypy
+#    rev: v0.770
+#    hooks:
+#      - id: mypy
+#        language_version: python3.7
+#        args: ["--no-strict-optional", "--ignore-missing-imports"]
