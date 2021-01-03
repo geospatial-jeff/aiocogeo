@@ -1,6 +1,8 @@
+"""aiocogeo.compression"""
+
 import abc
-from dataclasses import dataclass
 import struct
+from dataclasses import dataclass
 from typing import Optional
 
 import imagecodecs
@@ -12,12 +14,13 @@ from .tag import Tag
 
 @dataclass
 class Compression(metaclass=abc.ABCMeta):
+    """Compressions"""
+
     _file_reader: Filesystem
     TileHeight: Tag
     TileWidth: Tag
     Predictor: Optional[Tag]
     JPEGTables: Optional[Tag]
-
 
     @property
     @abc.abstractmethod
@@ -48,17 +51,16 @@ class Compression(metaclass=abc.ABCMeta):
 
     def _decompress_mask(self, tile: bytes) -> np.ndarray:
         """Internal method to decompress a binary mask and rescale to uint8"""
-        decoded = np.frombuffer(imagecodecs.zlib_decode(tile), np.dtype('uint8'))
-        mask = np.unpackbits(decoded).reshape(self.TileHeight.value, self.TileWidth.value) * 255
+        decoded = np.frombuffer(imagecodecs.zlib_decode(tile), np.dtype("uint8"))
+        mask = (
+            np.unpackbits(decoded).reshape(self.TileHeight.value, self.TileWidth.value)
+            * 255
+        )
         return mask
 
     def _reshape(self, arr: np.ndarray) -> np.ndarray:
         """Internal method to reshape an array to the size expected by the IFD"""
-        return arr.reshape(
-            self.TileHeight.value,
-            self.TileWidth.value,
-            self.bands,
-        )
+        return arr.reshape(self.TileHeight.value, self.TileWidth.value, self.bands,)
 
     def _unpredict(self, arr: np.ndarray) -> None:
         """Internal method to unpredict if there is horizontal differencing"""
@@ -95,11 +97,15 @@ class Compression(metaclass=abc.ABCMeta):
 
     def _deflate(self, tile: bytes) -> np.ndarray:
         """Internal method to decompress DEFLATE image bytes and convert to numpy array"""
-        decoded = self._reshape(np.frombuffer(imagecodecs.zlib_decode(tile), self.dtype))
+        decoded = self._reshape(
+            np.frombuffer(imagecodecs.zlib_decode(tile), self.dtype)
+        )
         self._unpredict(decoded)
         return np.rollaxis(decoded, 2, 0)
 
     def _packbits(self, tile: bytes) -> np.ndarray:
         """Internal method to decompress PACKBITS image bytes and convert to numpy array"""
-        decoded = self._reshape(np.frombuffer(imagecodecs.packbits_decode(tile), self.dtype))
+        decoded = self._reshape(
+            np.frombuffer(imagecodecs.packbits_decode(tile), self.dtype)
+        )
         return np.rollaxis(decoded, 2, 0)

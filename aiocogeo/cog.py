@@ -1,17 +1,19 @@
+"""aiocogeo.cog"""
+
 import abc
 import asyncio
-from dataclasses import dataclass, field
 import logging
+import uuid
+from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from urllib.parse import urljoin
-import uuid
 
 import affine
-from PIL import Image
 import numpy as np
+from PIL import Image
 
 from . import config
-from .constants import ColorInterp, MaskFlags, PHOTOMETRIC
+from .constants import PHOTOMETRIC, ColorInterp, MaskFlags
 from .errors import InvalidTiffError, TileNotFoundError
 from .filesystems import Filesystem
 from .ifd import IFD, ImageIFD, MaskIFD
@@ -23,15 +25,21 @@ logger.setLevel(config.LOG_LEVEL)
 
 @dataclass
 class ReaderMixin(abc.ABC):
+    """mixin with methods for reading the image"""
 
     async def __aenter__(self):
+        """async context management"""
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """async context management"""
         ...
 
     @abc.abstractmethod
-    async def get_tile(self, x: int, y: int, z: int) -> Union[np.ndarray, List[np.ndarray]]:
+    async def get_tile(
+        self, x: int, y: int, z: int
+    ) -> Union[np.ndarray, List[np.ndarray]]:
+        """Read image tile"""
         ...
 
     @abc.abstractmethod
@@ -40,12 +48,18 @@ class ReaderMixin(abc.ABC):
         bounds: Tuple[float, float, float, float],
         shape: Tuple[int, int],
         resample_method: int = Image.NEAREST,
-    ) -> Union[Union[np.ndarray, np.ma.masked_array], List[Union[np.ndarray, np.ma.masked_array]]]:
+    ) -> Union[
+        Union[np.ndarray, np.ma.masked_array],
+        List[Union[np.ndarray, np.ma.masked_array]],
+    ]:
+        """Partial read"""
         ...
 
 
 @dataclass
 class COGReader(ReaderMixin, PartialReadInterface):
+    """COGReader"""
+
     filepath: str
     ifds: Optional[List[ImageIFD]] = field(default_factory=lambda: [])
     mask_ifds: Optional[List[MaskIFD]] = field(default_factory=lambda: [])
@@ -61,6 +75,7 @@ class COGReader(ReaderMixin, PartialReadInterface):
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Close filesystem"""
         await self._file_reader._close()
 
     def __iter__(self):
@@ -69,14 +84,19 @@ class COGReader(ReaderMixin, PartialReadInterface):
             yield ifd
 
     async def open(self):
+        """Open the image"""
         await self._open()
 
     async def _open(self):
-        """internal method to open the cog by reading the file header"""
-        async with Filesystem.create_from_filepath(self.filepath, **self.kwargs) as file_reader:
+        """Internal method to open the cog by reading/parsing the file header"""
+        async with Filesystem.create_from_filepath(
+            self.filepath, **self.kwargs
+        ) as file_reader:
             self._file_reader = file_reader
             # Do the first request
-            self._file_reader.data += await self._file_reader.range_request(0, config.INGESTED_BYTES_AT_OPEN, is_header=True)
+            self._file_reader.data += await self._file_reader.range_request(
+                0, config.INGESTED_BYTES_AT_OPEN, is_header=True
+            )
             if (await file_reader.read(2)) == b"MM":
                 file_reader._endian = ">"
             version = await file_reader.read(2, cast_to_int=True)
@@ -139,10 +159,10 @@ class COGReader(ReaderMixin, PartialReadInterface):
     def requests(self) -> Dict[str, Union[int, List[Tuple[int]]]]:
         """Return statistics about http requests made during context lifecycle"""
         return {
-            'count': self._file_reader._total_requests,
-            'byte_count': self._file_reader._total_bytes_requested,
-            'ranges': self._file_reader._requested_ranges,
-            'header_size': self._file_reader._header_size
+            "count": self._file_reader._total_requests,
+            "byte_count": self._file_reader._total_bytes_requested,
+            "ranges": self._file_reader._requested_ranges,
+            "header_size": self._file_reader._header_size,
         }
 
     @property
@@ -179,6 +199,7 @@ class COGReader(ReaderMixin, PartialReadInterface):
 
     @property
     def photometric(self):
+        """Photometric interpretation"""
         return PHOTOMETRIC[self.ifds[0].PhotometricInterpretation.value]
 
     @property
@@ -192,9 +213,12 @@ class COGReader(ReaderMixin, PartialReadInterface):
             if self.has_alpha or self.nodata is not None:
                 nodata_val = 0 if self.has_alpha else self.nodata
 
-            transform = lambda val: int((val / 65535) * 255)
+            transform = lambda val: int((val / 65535) * 255)  # noqa
             for idx in range(count):
-                color = [transform(self.ifds[0].ColorMap.value[idx + i * count]) for i in range(3)]
+                color = [
+                    transform(self.ifds[0].ColorMap.value[idx + i * count])
+                    for i in range(3)
+                ]
                 if nodata_val is not None:
                     color.append(0 if idx == nodata_val else 255)
                 colormap[idx] = tuple(color)
@@ -217,13 +241,26 @@ class COGReader(ReaderMixin, PartialReadInterface):
         elif photometric == "palette":
             interp = [ColorInterp.palette]
         elif photometric == "cmyk":
-            interp = [ColorInterp.cyan, ColorInterp.magenta, ColorInterp.yellow, ColorInterp.black]
+            interp = [
+                ColorInterp.cyan,
+                ColorInterp.magenta,
+                ColorInterp.yellow,
+                ColorInterp.black,
+            ]
         elif photometric == "ycbcr":
             interp = [ColorInterp.red, ColorInterp.green, ColorInterp.blue]
-        elif photometric == "cielab" or photometric == "icclab" or photometric == "itulab":
-            interp = [ColorInterp.lightness, ColorInterp.lightness, ColorInterp.lightness]
+        elif (
+            photometric == "cielab"
+            or photometric == "icclab"
+            or photometric == "itulab"
+        ):
+            interp = [
+                ColorInterp.lightness,
+                ColorInterp.lightness,
+                ColorInterp.lightness,
+            ]
         else:
-            interp = [ColorInterp.undefined for _ in range(self.profile['count'])]
+            interp = [ColorInterp.undefined for _ in range(self.profile["count"])]
         return interp
 
     @property
@@ -237,10 +274,12 @@ class COGReader(ReaderMixin, PartialReadInterface):
 
     @property
     def nodata(self) -> Optional[int]:
+        """Nodata value"""
         return self.ifds[0].nodata
 
     @property
     def gdal_metadata(self) -> Dict:
+        """GDAL_METADATA contents"""
         return self.ifds[0].gdal_metadata
 
     async def _read_header(self) -> None:
@@ -248,7 +287,9 @@ class COGReader(ReaderMixin, PartialReadInterface):
         next_ifd_offset = 1
         while next_ifd_offset != 0:
             ifd = await IFD.read(self._file_reader)
-            logger.debug(f" Opened {ifd.ImageHeight.value}x{ifd.ImageWidth.value} overview")
+            logger.debug(
+                f" Opened {ifd.ImageHeight.value}x{ifd.ImageWidth.value} overview"
+            )
             next_ifd_offset = ifd.next_ifd_offset
             self._file_reader.seek(next_ifd_offset)
 
@@ -285,7 +326,6 @@ class COGReader(ReaderMixin, PartialReadInterface):
             )
         return gt
 
-
     async def get_tile(self, x: int, y: int, z: int) -> np.ndarray:
 
         """
@@ -304,21 +344,17 @@ class COGReader(ReaderMixin, PartialReadInterface):
                 raise TileNotFoundError(f"Internal tile {z}/{x}/{y} does not exist")
             tile = np.full(
                 (ifd.bands, ifd.TileHeight.value, ifd.TileWidth.value),
-                fill_value=config.BOUNDLESS_READ_FILL_VALUE
+                fill_value=config.BOUNDLESS_READ_FILL_VALUE,
             )
             return tile
 
         # Request the tile
-        futures.append(
-            asyncio.create_task(ifd._get_tile(x, y))
-        )
+        futures.append(asyncio.create_task(ifd._get_tile(x, y)))
 
         # Request the mask
         if self.is_masked:
             mask_ifd = self.mask_ifds[z]
-            futures.append(
-                asyncio.create_task(mask_ifd._get_tile(x, y))
-            )
+            futures.append(asyncio.create_task(mask_ifd._get_tile(x, y)))
 
         tile = await asyncio.gather(*futures)
 
@@ -351,7 +387,7 @@ class COGReader(ReaderMixin, PartialReadInterface):
             tile_height=ifd.TileHeight.value,
             band_count=ifd.bands,
             ovr_level=ovr_level,
-            dtype=ifd.dtype
+            dtype=ifd.dtype,
         )
 
         if not self._intersect_bounds(bounds, self.native_bounds):
@@ -368,11 +404,10 @@ class COGReader(ReaderMixin, PartialReadInterface):
             arr=img_arr,
             img_tiles=img_tiles,
             out_shape=shape,
-            resample_method=resample_method
+            resample_method=resample_method,
         )
 
         return postprocessed
-
 
     def create_tile_matrix_set(self, identifier: str = None) -> Dict[str, Any]:
         """Create an OGC TileMatrixSet where each TileMatrix corresponds to an overview"""
@@ -393,8 +428,10 @@ class COGReader(ReaderMixin, PartialReadInterface):
         tms = {
             "title": f"Tile matrix for {self.filepath}",
             "identifier": identifier or str(uuid.uuid4()),
-            "supportedCRS": urljoin(f"http://www.opengis.net", f"/def/crs/EPSG/0/{self.epsg}"),
-            "tileMatrix": list(reversed(matrices))
+            "supportedCRS": urljoin(
+                "http://www.opengis.net", f"/def/crs/EPSG/0/{self.epsg}"
+            ),
+            "tileMatrix": list(reversed(matrices)),
         }
         return tms
 
@@ -403,30 +440,37 @@ FilterType = Callable[[COGReader], Any]
 MapType = Callable[[COGReader], Any]
 ReduceType = Callable[[List[Union[np.ndarray, np.ma.masked_array]]], Any]
 
+
 @dataclass
 class CompositeReader(ReaderMixin):
+    """Mapping operations across multiple instances of COGReader"""
+
     readers: Optional[List[COGReader]] = field(default_factory=list)
     filter: FilterType = lambda a: a
     default_reducer: ReduceType = lambda r: r
 
     def __iter__(self):
+        """Iterate through COGReader instances"""
         return iter(self.readers)
 
     async def __aenter__(self):
+        """async context management"""
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """async context management"""
         pass
 
     async def map(self, func: MapType) -> List[Any]:
+        """map a function of a particular signature over each COGReader"""
         futs = [func(reader) for reader in filter(self.filter, self.readers)]
         return await asyncio.gather(*futs)
 
-    async def get_tile(self, x: int, y: int, z: int, reducer: Optional[ReduceType] = None) -> List[np.ndarray]:
+    async def get_tile(
+        self, x: int, y: int, z: int, reducer: Optional[ReduceType] = None
+    ) -> List[np.ndarray]:
         """Fetch a tile from all readers"""
-        tiles = await self.map(
-            func=lambda r: r.get_tile(x, y, z),
-        )
+        tiles = await self.map(func=lambda r: r.get_tile(x, y, z),)
         reducer = reducer or self.default_reducer
         return reducer(tiles)
 
@@ -435,10 +479,9 @@ class CompositeReader(ReaderMixin):
         bounds: Tuple[float, float, float, float],
         shape: Tuple[int, int],
         resample_method: int = Image.NEAREST,
-        reducer: Optional[ReduceType] = None
+        reducer: Optional[ReduceType] = None,
     ):
-        reads = await self.map(
-            func=lambda r: r.read(bounds, shape, resample_method)
-        )
+        """Partial read across all readers"""
+        reads = await self.map(func=lambda r: r.read(bounds, shape, resample_method))
         reducer = reducer or self.default_reducer
         return reducer(reads)

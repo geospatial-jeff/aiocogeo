@@ -1,15 +1,15 @@
-
-from morecantile.models import TileMatrixSet
 import pytest
 import rasterio
+from morecantile.models import TileMatrixSet
 
 from aiocogeo import config
+from aiocogeo.constants import MaskFlags
+from aiocogeo.errors import InvalidTiffError
 from aiocogeo.ifd import IFD
 from aiocogeo.tag import BaseTag
-from aiocogeo.errors import InvalidTiffError
-from aiocogeo.constants import MaskFlags
 
 from .conftest import TEST_DATA
+
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("infile", TEST_DATA)
@@ -23,17 +23,24 @@ async def test_cog_metadata(infile, create_cog_reader):
             cog_profile.pop("photometric", None)
             rio_profile.pop("photometric", None)
 
-            assert [member.value for member in ds.colorinterp] == [member.value for member in cog.color_interp]
+            assert [member.value for member in ds.colorinterp] == [
+                member.value for member in cog.color_interp
+            ]
             assert rio_profile == cog_profile
             assert ds.overviews(1) == cog.overviews
 
             rio_tags = ds.tags()
             gdal_metadata = cog.gdal_metadata
 
-            for (k,v) in rio_tags.items():
-                if k in ("TIFFTAG_XRESOLUTION", "TIFFTAG_YRESOLUTION", "TIFFTAG_RESOLUTIONUNIT"):
+            for (k, v) in rio_tags.items():
+                if k in (
+                    "TIFFTAG_XRESOLUTION",
+                    "TIFFTAG_YRESOLUTION",
+                    "TIFFTAG_RESOLUTIONUNIT",
+                ):
                     continue
                 assert str(gdal_metadata[k]) == v
+
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("infile", TEST_DATA)
@@ -67,7 +74,6 @@ async def test_cog_metadata_overviews(infile, create_cog_reader):
                 pass
 
 
-
 @pytest.mark.asyncio
 async def test_cog_palette(create_cog_reader):
     infile = "https://async-cog-reader-test-data.s3.amazonaws.com/cog_cmap.tif"
@@ -80,36 +86,42 @@ async def test_cog_palette(create_cog_reader):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("infile,expected", zip(TEST_DATA, [
-    [[MaskFlags.all_valid], [MaskFlags.all_valid], [MaskFlags.all_valid]],
-    [[MaskFlags.all_valid], [MaskFlags.all_valid], [MaskFlags.all_valid]],
-    [[MaskFlags.all_valid], [MaskFlags.all_valid], [MaskFlags.all_valid]],
-    [[MaskFlags.all_valid], [MaskFlags.all_valid], [MaskFlags.all_valid]],
-    [[MaskFlags.all_valid], [MaskFlags.all_valid], [MaskFlags.all_valid]],
-    [[MaskFlags.nodata], [MaskFlags.nodata], [MaskFlags.nodata]],
-    [[MaskFlags.nodata], [MaskFlags.nodata], [MaskFlags.nodata]],
-    [[MaskFlags.per_dataset], [MaskFlags.per_dataset], [MaskFlags.per_dataset]],
-    [[MaskFlags.nodata], [MaskFlags.nodata], [MaskFlags.nodata]],
-    [
-        [MaskFlags.per_dataset, MaskFlags.alpha],
-        [MaskFlags.per_dataset, MaskFlags.alpha],
-        [MaskFlags.per_dataset, MaskFlags.alpha],
-        [MaskFlags.all_valid]
-    ],
-    [[MaskFlags.per_dataset]],
-    [[MaskFlags.all_valid], [MaskFlags.all_valid], [MaskFlags.all_valid]],
-
-]))
+@pytest.mark.parametrize(
+    "infile,expected",
+    zip(
+        TEST_DATA,
+        [
+            [[MaskFlags.all_valid], [MaskFlags.all_valid], [MaskFlags.all_valid]],
+            [[MaskFlags.all_valid], [MaskFlags.all_valid], [MaskFlags.all_valid]],
+            [[MaskFlags.all_valid], [MaskFlags.all_valid], [MaskFlags.all_valid]],
+            [[MaskFlags.all_valid], [MaskFlags.all_valid], [MaskFlags.all_valid]],
+            [[MaskFlags.all_valid], [MaskFlags.all_valid], [MaskFlags.all_valid]],
+            [[MaskFlags.nodata], [MaskFlags.nodata], [MaskFlags.nodata]],
+            [[MaskFlags.nodata], [MaskFlags.nodata], [MaskFlags.nodata]],
+            [[MaskFlags.per_dataset], [MaskFlags.per_dataset], [MaskFlags.per_dataset]],
+            [[MaskFlags.nodata], [MaskFlags.nodata], [MaskFlags.nodata]],
+            [
+                [MaskFlags.per_dataset, MaskFlags.alpha],
+                [MaskFlags.per_dataset, MaskFlags.alpha],
+                [MaskFlags.per_dataset, MaskFlags.alpha],
+                [MaskFlags.all_valid],
+            ],
+            [[MaskFlags.per_dataset]],
+            [[MaskFlags.all_valid], [MaskFlags.all_valid], [MaskFlags.all_valid]],
+        ],
+    ),
+)
 async def test_cog_mask_flags(create_cog_reader, infile, expected):
     async with create_cog_reader(infile) as cog:
         mask_flags = cog.mask_flags
     assert expected == mask_flags
 
 
-
 @pytest.mark.asyncio
 async def test_cog_has_alpha_band(create_cog_reader):
-    async with create_cog_reader("https://async-cog-reader-test-data.s3.amazonaws.com/cog_alpha_band.tif") as cog:
+    async with create_cog_reader(
+        "https://async-cog-reader-test-data.s3.amazonaws.com/cog_alpha_band.tif"
+    ) as cog:
         assert cog.has_alpha
 
     async with create_cog_reader(TEST_DATA[0]) as cog:
@@ -124,8 +136,6 @@ async def test_cog_tile_matrix_set(infile, create_cog_reader):
         TileMatrixSet(**tile_matrix_set)
 
 
-
-
 @pytest.mark.asyncio
 @pytest.mark.parametrize("infile", [TEST_DATA[0]])
 async def test_cog_metadata_iter(infile, create_cog_reader):
@@ -134,6 +144,7 @@ async def test_cog_metadata_iter(infile, create_cog_reader):
             assert isinstance(ifd, IFD)
             for tag in ifd:
                 assert isinstance(tag, BaseTag)
+
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("infile", TEST_DATA)
@@ -152,7 +163,7 @@ async def test_cog_request_metadata(create_cog_reader, infile):
 async def test_cog_not_a_tiff(create_cog_reader):
     infile = "https://async-cog-reader-test-data.s3.amazonaws.com/not_a_tiff.png"
     with pytest.raises(InvalidTiffError):
-        async with create_cog_reader(infile) as cog:
+        async with create_cog_reader(infile):
             ...
 
 
@@ -168,21 +179,22 @@ async def test_cog_not_a_tiff(create_cog_reader):
 )
 async def test_file_not_found(create_cog_reader, infile):
     with pytest.raises(FileNotFoundError):
-        async with create_cog_reader(infile) as cog:
+        async with create_cog_reader(infile):
             ...
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "chunk_size,request_count,header_size", [
-        [16384, 2, 32770],
-        [4096, 4, 28769],
-        [100, 14, 26776]
-    ]
+    "chunk_size,request_count,header_size",
+    [[16384, 2, 32770], [4096, 4, 28769], [100, 14, 26776]],
 )
-async def test_chunk_size(chunk_size, request_count, header_size, monkeypatch, create_cog_reader):
+async def test_chunk_size(
+    chunk_size, request_count, header_size, monkeypatch, create_cog_reader
+):
     monkeypatch.setattr(config, "HEADER_CHUNK_SIZE", chunk_size)
-    async with create_cog_reader("https://async-cog-reader-test-data.s3.amazonaws.com/webp_cog.tif") as cog:
+    async with create_cog_reader(
+        "https://async-cog-reader-test-data.s3.amazonaws.com/webp_cog.tif"
+    ) as cog:
         requests = cog.requests
-        assert requests['count'] == request_count
-        assert requests['header_size'] == header_size
+        assert requests["count"] == request_count
+        assert requests["header_size"] == header_size

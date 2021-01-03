@@ -1,14 +1,12 @@
 import asyncio
-from concurrent.futures import ProcessPoolExecutor
 import os
+from concurrent.futures import ProcessPoolExecutor
 
 import aiohttp
 import pytest
 from typer.testing import CliRunner
 
-from aiocogeo import config
-from aiocogeo import COGReader
-
+from aiocogeo import COGReader, config
 
 asyncio.get_event_loop().set_default_executor(ProcessPoolExecutor())
 
