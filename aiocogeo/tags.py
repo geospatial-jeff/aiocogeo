@@ -1,5 +1,7 @@
 import abc
+import struct
 from dataclasses import dataclass
+from typing import Any, Optional
 
 from aiocogeo.constants import TIFF_TAGS
 from aiocogeo.tag import TAG_TYPES, TagType
@@ -13,7 +15,12 @@ class Tag(abc.ABC):
     count: int
     offset: int
     length: int
+    value: bytes
     tag_type: TagType
+
+    @abc.abstractmethod
+    async def get_value(self) -> Any:
+        ...
 
     @abc.abstractmethod
     @classmethod
@@ -32,6 +39,7 @@ class SimpleTag(Tag):
         name = TIFF_TAGS[code]
         field_type = TAG_TYPES[2:4]
         count = data[4:8]
+        value = data[8:12]
         length = field_type.size * count
         return cls(
             code=code,
@@ -39,8 +47,14 @@ class SimpleTag(Tag):
             count=count,
             offset=offset,
             length=length,
+            value=value,
             tag_type=field_type,
         )
+
+    async def get_value(self) -> Any:
+        if self.length > 4:
+            raise NotImplementedError
+        return struct.unpack(f"<{self.count}{self.tag_type.format}", self.value)
 
 
 class NewSubfileType(SimpleTag):
