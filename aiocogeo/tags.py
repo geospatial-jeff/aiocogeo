@@ -11,12 +11,13 @@ class Tag(abc.ABC):
     code: int
     name: str
     count: int
+    offset: int
     length: int
     tag_type: TagType
 
     @abc.abstractmethod
     @classmethod
-    def read(cls, data: bytes):
+    def read(cls, data: bytes, offset: int):
         ...
 
     def write(self) -> bytes:
@@ -26,182 +27,154 @@ class Tag(abc.ABC):
 @dataclass
 class SimpleTag(Tag):
     @classmethod
-    def read(cls, data: bytes):
+    def read(cls, data: bytes, offset: int):
         code = data[:2]
         name = TIFF_TAGS[code]
         field_type = TAG_TYPES[2:4]
         count = data[4:8]
         length = field_type.size * count
         return cls(
-            code=code, name=name, count=count, length=length, tag_type=field_type
+            code=code,
+            name=name,
+            count=count,
+            offset=offset,
+            length=length,
+            tag_type=field_type,
         )
 
 
 class NewSubfileType(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class ImageWidth(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class ImageHeight(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class BitsPerSample(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class Compression(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class PhotometricInterpretation(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class DocumentName(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class ImageDescription(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class SamplesPerPixel(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class MinSampleValue(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class MaxSampleValue(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class XResolution(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class YResolution(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class PlanarConfiguration(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class ResolutionUnit(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class Software(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class DateTime(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class Artist(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class HostComputer(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class Predictor(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class ColorMap(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class TileWidth(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class TileHeight(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class TileOffsets(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class TileByteCounts(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class ExtraSamples(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class SampleFormat(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class JPEGTables(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class Copyright(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class ModelPixelScaleTag(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class ModelTiepointTag(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class GeoKeyDirectoryTag(Tag):
-    def read(cls, data: bytes):
+    def read(cls, data: bytes, offset: int):
         raise NotImplementedError
 
 
 class GdalMetadata(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
 
 
 class Nodata(SimpleTag):
-    def read(cls, data: bytes):
-        raise NotImplementedError
+    pass
