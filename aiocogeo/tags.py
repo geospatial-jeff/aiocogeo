@@ -1,7 +1,8 @@
 import abc
 from dataclasses import dataclass
 
-from aiocogeo.tag import TagType
+from aiocogeo.constants import TIFF_TAGS
+from aiocogeo.tag import TAG_TYPES, TagType
 
 
 @dataclass
@@ -22,157 +23,171 @@ class Tag(abc.ABC):
         raise NotImplementedError
 
 
-class NewSubfileType(Tag):
+@dataclass
+class SimpleTag(Tag):
+    @classmethod
+    def read(cls, data: bytes):
+        code = data[:2]
+        name = TIFF_TAGS[code]
+        field_type = TAG_TYPES[2:4]
+        count = data[4:8]
+        length = field_type.size * count
+        return cls(
+            code=code, name=name, count=count, length=length, tag_type=field_type
+        )
+
+
+class NewSubfileType(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class ImageWidth(Tag):
+class ImageWidth(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class ImageHeight(Tag):
+class ImageHeight(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class BitsPerSample(Tag):
+class BitsPerSample(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class Compression(Tag):
+class Compression(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class PhotometricInterpretation(Tag):
+class PhotometricInterpretation(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class DocumentName(Tag):
+class DocumentName(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class ImageDescription(Tag):
+class ImageDescription(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class SamplesPerPixel(Tag):
+class SamplesPerPixel(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class MinSampleValue(Tag):
+class MinSampleValue(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class MaxSampleValue(Tag):
+class MaxSampleValue(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class XResolution(Tag):
+class XResolution(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class YResolution(Tag):
+class YResolution(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class PlanarConfiguration(Tag):
+class PlanarConfiguration(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class ResolutionUnit(Tag):
+class ResolutionUnit(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class Software(Tag):
+class Software(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class DateTime(Tag):
+class DateTime(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class Artist(Tag):
+class Artist(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class HostComputer(Tag):
+class HostComputer(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class Predictor(Tag):
+class Predictor(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class ColorMap(Tag):
+class ColorMap(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class TileWidth(Tag):
+class TileWidth(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class TileHeight(Tag):
+class TileHeight(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class TileOffsets(Tag):
+class TileOffsets(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class TileByteCounts(Tag):
+class TileByteCounts(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class ExtraSamples(Tag):
+class ExtraSamples(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class SampleFormat(Tag):
+class SampleFormat(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class JPEGTables(Tag):
+class JPEGTables(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class Copyright(Tag):
+class Copyright(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class ModelPixelScaleTag(Tag):
+class ModelPixelScaleTag(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class ModelTiepointTag(Tag):
+class ModelTiepointTag(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
@@ -182,11 +197,11 @@ class GeoKeyDirectoryTag(Tag):
         raise NotImplementedError
 
 
-class GdalMetadata(Tag):
+class GdalMetadata(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
 
 
-class Nodata(Tag):
+class Nodata(SimpleTag):
     def read(cls, data: bytes):
         raise NotImplementedError
