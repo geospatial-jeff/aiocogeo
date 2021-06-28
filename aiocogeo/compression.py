@@ -65,7 +65,7 @@ class Compression(metaclass=abc.ABCMeta):
     def _unpredict(self, arr: np.ndarray) -> None:
         """Internal method to unpredict if there is horizontal differencing"""
         if self.Predictor.value == 2:
-            imagecodecs.delta_decode(arr, out=arr, axis=-1)
+            imagecodecs.delta_decode(arr, out=arr, axis=-2)
 
     def _jpeg(self, tile: bytes) -> np.ndarray:
         """Internal method to decompress JPEG image bytes and convert to numpy array"""
