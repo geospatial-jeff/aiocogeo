@@ -10,7 +10,9 @@ STAC_ITEM = "https://canada-spot-ortho.s3.amazonaws.com/canada_spot_orthoimages/
 
 @pytest.mark.asyncio
 async def test_stac_reader():
-    async with STACReader(filepath=STAC_ITEM,) as reader:
+    async with STACReader(
+        filepath=STAC_ITEM,
+    ) as reader:
         assert len(reader.readers) == 5
 
 

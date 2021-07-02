@@ -60,7 +60,11 @@ class Compression(metaclass=abc.ABCMeta):
 
     def _reshape(self, arr: np.ndarray) -> np.ndarray:
         """Internal method to reshape an array to the size expected by the IFD"""
-        return arr.reshape(self.TileHeight.value, self.TileWidth.value, self.bands,)
+        return arr.reshape(
+            self.TileHeight.value,
+            self.TileWidth.value,
+            self.bands,
+        )
 
     def _unpredict(self, arr: np.ndarray) -> None:
         """Internal method to unpredict if there is horizontal differencing"""

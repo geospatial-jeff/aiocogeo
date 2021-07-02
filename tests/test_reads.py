@@ -408,11 +408,7 @@ async def test_inject_session(create_cog_reader):
 
 @pytest.mark.asyncio
 async def test_cog_read_with_prediction_level_2(create_cog_reader):
-    import os
-    os.environ["CURL_CA_BUNDLE"] = "/etc/ssl/certs/ca-certificates.crt"
-    infile = (
-        "https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/22/J/DN/2021/6/S2B_22JDN_20210601_0_L2A/TCI.tif"
-    )
+    infile = "https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/22/J/DN/2021/6/S2B_22JDN_20210601_0_L2A/TCI.tif"
 
     async with create_cog_reader(infile) as cog:
         # Read top left tile at native resolution
@@ -432,11 +428,7 @@ async def test_cog_read_with_prediction_level_2(create_cog_reader):
             # Make sure image data is the same
             tile_arr = np.ma.getdata(tile)
             import hashlib
+
             rio_tile_hash = hashlib.md5(tile_arr.tobytes()).hexdigest()
             tile_arr_hash = hashlib.md5(rio_tile.tobytes()).hexdigest()
             assert rio_tile_hash == tile_arr_hash
-            # from matplotlib import pyplot as plt
-            # plt.imshow(tile_arr.transpose([1, 2, 0]))
-            # plt.show()
-
-    del os.environ["CURL_CA_BUNDLE"]

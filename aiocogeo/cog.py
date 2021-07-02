@@ -470,7 +470,9 @@ class CompositeReader(ReaderMixin):
         self, x: int, y: int, z: int, reducer: Optional[ReduceType] = None
     ) -> List[np.ndarray]:
         """Fetch a tile from all readers"""
-        tiles = await self.map(func=lambda r: r.get_tile(x, y, z),)
+        tiles = await self.map(
+            func=lambda r: r.get_tile(x, y, z),
+        )
         reducer = reducer or self.default_reducer
         return reducer(tiles)
 
